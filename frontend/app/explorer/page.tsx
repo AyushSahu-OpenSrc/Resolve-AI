@@ -117,9 +117,13 @@ export default function ExplorerPage() {
                     <td className="mono" style={{ fontSize: '0.75rem' }}>{o.customer_id}</td>
                     <td className="mono" style={{ fontSize: '0.75rem', color: 'var(--ink-muted)' }}>{o.product_id}</td>
                     <td>
-                      <span className={`status-pill ${o.status.replace(/_/g, '-')}`}>
-                        {o.status.toUpperCase().replace(/_/g, ' ')}
-                      </span>
+                      {o.status ? (
+                        <span className={`status-pill ${o.status.replace(/_/g, '-')}`}>
+                          {o.status.toUpperCase().replace(/_/g, ' ')}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--ink-muted)', fontSize: '0.75rem' }}>—</span>
+                      )}
                     </td>
                     <td style={{ color: 'var(--ink-muted)', fontSize: '0.75rem' }}>{o.issue_type || '—'}</td>
                     <td className="numeric mono">₹{o.total_amount?.toLocaleString()}</td>
