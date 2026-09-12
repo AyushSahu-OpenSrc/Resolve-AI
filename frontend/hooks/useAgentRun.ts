@@ -55,7 +55,7 @@ export function useAgentRun(caseId: string | null) {
     const detail = await fetchCaseDetail()
     await fetchEvents()
 
-    const isActive = detail?.status === 'running' || detail?.status === 'open'
+    const isActive = detail?.status === 'running' || detail?.status === 'processing'
     setIsRunning(isActive)
 
     if (isActive && isMountedRef.current) {
