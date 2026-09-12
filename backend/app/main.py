@@ -3,6 +3,8 @@ ResolveAI FastAPI application.
 """
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import threading
@@ -10,7 +12,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from fastapi import FastAPI, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, Query, BackgroundTasks, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -113,6 +115,31 @@ def get_customer_api(customer_id: str, session: Session = Depends(get_session)):
     return {"id": c.id, "name": c.name, "email": c.email, "tier": c.tier, "phone": c.phone}
 
 
+@app.post("/api/import/customers")
+async def import_customers(file: UploadFile = File(...), session: Session = Depends(get_session)):
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(400, "Only CSV files are supported")
+    
+    contents = await file.read()
+    decoded = contents.decode("utf-8")
+    reader = csv.DictReader(io.StringIO(decoded))
+    
+    count = 0
+    for row in reader:
+        c = session.get(Customer, row.get("id"))
+        if not c:
+            c = Customer(id=row.get("id"), name=row.get("name"), email=row.get("email"), tier=row.get("tier", "standard"), phone=row.get("phone"))
+        else:
+            c.name = row.get("name", c.name)
+            c.email = row.get("email", c.email)
+            c.tier = row.get("tier", c.tier)
+            c.phone = row.get("phone", c.phone)
+        session.add(c)
+        count += 1
+    session.commit()
+    return {"status": "success", "imported": count}
+
+
 # ─── Orders ───────────────────────────────────────────────────────────────────
 
 @app.get("/api/orders")
@@ -144,6 +171,41 @@ def get_order_api(order_id: str, session: Session = Depends(get_session)):
     }
 
 
+@app.post("/api/import/orders")
+async def import_orders(file: UploadFile = File(...), session: Session = Depends(get_session)):
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(400, "Only CSV files are supported")
+    
+    contents = await file.read()
+    decoded = contents.decode("utf-8")
+    reader = csv.DictReader(io.StringIO(decoded))
+    
+    count = 0
+    for row in reader:
+        o = session.get(Order, row.get("id"))
+        from datetime import datetime
+        def parse_dt(dt_str):
+            if not dt_str: return None
+            try: return datetime.fromisoformat(dt_str)
+            except: return None
+
+        if not o:
+            o = Order(
+                id=row.get("id"), customer_id=row.get("customer_id"), product_id=row.get("product_id"),
+                status=row.get("status", "pending"), purchase_date=parse_dt(row.get("purchase_date")) or _now(),
+                delivery_date=parse_dt(row.get("delivery_date")), issue_type=row.get("issue_type") or None,
+                total_amount=float(row.get("total_amount", 0.0)), quantity=int(row.get("quantity", 1))
+            )
+        else:
+            o.status = row.get("status", o.status)
+            o.issue_type = row.get("issue_type") or o.issue_type
+            if row.get("total_amount"): o.total_amount = float(row.get("total_amount"))
+        session.add(o)
+        count += 1
+    session.commit()
+    return {"status": "success", "imported": count}
+
+
 # ─── Inventory ────────────────────────────────────────────────────────────────
 
 @app.get("/api/inventory")
@@ -160,6 +222,33 @@ def list_inventory(session: Session = Depends(get_session)):
     ]
 
 
+@app.post("/api/import/inventory")
+async def import_inventory(file: UploadFile = File(...), session: Session = Depends(get_session)):
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(400, "Only CSV files are supported")
+    
+    contents = await file.read()
+    decoded = contents.decode("utf-8")
+    reader = csv.DictReader(io.StringIO(decoded))
+    
+    count = 0
+    for row in reader:
+        inv = session.get(Inventory, row.get("id"))
+        if not inv:
+            inv = Inventory(
+                id=row.get("id"), product_id=row.get("product_id"), warehouse=row.get("warehouse"),
+                quantity=int(row.get("quantity", 0)), reserved_quantity=int(row.get("reserved_quantity", 0))
+            )
+        else:
+            if row.get("quantity"): inv.quantity = int(row.get("quantity"))
+            if row.get("reserved_quantity"): inv.reserved_quantity = int(row.get("reserved_quantity"))
+        inv.updated_at = _now()
+        session.add(inv)
+        count += 1
+    session.commit()
+    return {"status": "success", "imported": count}
+
+
 # ─── Policies ─────────────────────────────────────────────────────────────────
 
 @app.get("/api/policies")
@@ -172,6 +261,53 @@ def list_policies(session: Session = Depends(get_session)):
         }
         for p in policies
     ]
+
+
+class PolicyCreate(BaseModel):
+    id: str
+    category: str
+    policy_text: str
+    eligibility_rules: dict
+
+
+@app.post("/api/policies")
+def create_policy(req: PolicyCreate, session: Session = Depends(get_session)):
+    if session.get(Policy, req.id):
+        raise HTTPException(409, f"Policy {req.id} already exists")
+    
+    policy = Policy(
+        id=req.id, category=req.category, policy_text=req.policy_text,
+        eligibility_rules_json=json.dumps(req.eligibility_rules)
+    )
+    session.add(policy)
+    session.commit()
+    return {"status": "success", "id": policy.id}
+
+
+@app.put("/api/policies/{policy_id}")
+def update_policy(policy_id: str, req: PolicyCreate, session: Session = Depends(get_session)):
+    policy = session.get(Policy, policy_id)
+    if not policy:
+        raise HTTPException(404, "Policy not found")
+    
+    policy.category = req.category
+    policy.policy_text = req.policy_text
+    policy.eligibility_rules_json = json.dumps(req.eligibility_rules)
+    
+    session.add(policy)
+    session.commit()
+    return {"status": "success", "id": policy.id}
+
+
+@app.delete("/api/policies/{policy_id}")
+def delete_policy(policy_id: str, session: Session = Depends(get_session)):
+    policy = session.get(Policy, policy_id)
+    if not policy:
+        raise HTTPException(404, "Policy not found")
+    
+    session.delete(policy)
+    session.commit()
+    return {"status": "success", "id": policy_id}
 
 
 # ─── Cases ────────────────────────────────────────────────────────────────────

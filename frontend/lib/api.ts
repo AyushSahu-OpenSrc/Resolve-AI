@@ -20,6 +20,22 @@ async function apiFetch(path: string, options?: RequestInit) {
   return res.json()
 }
 
+async function apiUpload(path: string, file: File) {
+  const url = `${API_BASE}${path}`
+  const formData = new FormData()
+  formData.append('file', file)
+  
+  const res = await fetch(url, {
+    method: 'POST',
+    body: formData,
+  })
+  if (!res.ok) {
+    const errorBody = await res.text()
+    throw new Error(`API ${res.status}: ${errorBody}`)
+  }
+  return res.json()
+}
+
 export const api = {
   // Health
   health: () => apiFetch('/api/health'),
@@ -37,6 +53,13 @@ export const api = {
 
   // Policies
   getPolicies: () => apiFetch('/api/policies'),
+  createPolicy: (data: any) => apiFetch('/api/policies', { method: 'POST', body: JSON.stringify(data) }),
+  updatePolicy: (id: string, data: any) => apiFetch(`/api/policies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deletePolicy: (id: string) => apiFetch(`/api/policies/${id}`, { method: 'DELETE' }),
+
+  // Imports
+  uploadCsv: (type: 'customers' | 'orders' | 'inventory', file: File) => 
+    apiUpload(`/api/import/${type}`, file),
 
   // Cases
   getCases: () => apiFetch('/api/cases'),
