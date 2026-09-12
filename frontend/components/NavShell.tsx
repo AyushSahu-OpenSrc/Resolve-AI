@@ -85,12 +85,12 @@ export function NavShell({ children }: { children: React.ReactNode }) {
         {/* Version / bottom area */}
         <div style={{ marginTop: 'auto', padding: '0 1.0625rem', width: '100%' }}>
           <div className="nav-rail-label" style={{
-            fontSize: '0.5625rem',
-            fontFamily: 'IBM Plex Mono, monospace',
+            fontSize: '0.875rem',
+            fontFamily: 'Times New Roman, Times, serif',
             color: 'var(--ink-faint)',
             letterSpacing: '0.04em',
           }}>
-            Tech Zephyr 4.0
+            v1.0.0
           </div>
         </div>
       </nav>

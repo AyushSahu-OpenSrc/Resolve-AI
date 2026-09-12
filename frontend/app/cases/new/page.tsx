@@ -95,31 +95,7 @@ export default function NewCasePage() {
 
       <div style={{ maxWidth: 580, margin: '2.5rem auto', padding: '0 2rem' }}>
 
-        {/* Prefill shortcut */}
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          marginBottom: '1.5rem',
-          padding: '0.75rem 1rem',
-          background: 'var(--signal-tint)',
-          border: '1px solid rgba(193,99,30,0.2)',
-          borderRadius: 4,
-        }}>
-          <div>
-            <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--ink)' }}>Guided demo scenario</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--ink-muted)', marginTop: '0.125rem' }}>
-              Prefill CUST-001 / ORD-1042 — triggers inventory conflict and replan
-            </div>
-          </div>
-          <button
-            type="button"
-            id="btn-prefill-demo"
-            className="btn btn-secondary"
-            onClick={prefillDemo}
-            style={{ fontSize: '0.8125rem', flexShrink: 0 }}
-          >
-            Prefill Demo
-          </button>
-        </div>
+
 
         <form onSubmit={handleSubmit}>
           <div className="panel">
@@ -189,30 +165,7 @@ export default function NewCasePage() {
                 </div>
               </div>
 
-              {/* Demo conflict toggle */}
-              <div style={{
-                marginBottom: '1.25rem',
-                padding: '0.75rem',
-                background: 'var(--surface)',
-                border: '1px solid var(--line)',
-                borderRadius: 4,
-              }}>
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.625rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    id="demo_mode"
-                    checked={form.demo_mode}
-                    onChange={e => setForm(f => ({ ...f, demo_mode: e.target.checked }))}
-                    style={{ accentColor: 'var(--signal)', marginTop: 2, flexShrink: 0 }}
-                  />
-                  <div>
-                    <div className="text-label">Enable demo conflict</div>
-                    <div className="form-hint" style={{ marginTop: '0.125rem' }}>
-                      Forces a real inventory conflict at Mumbai — agent must replan and fulfill from Pune
-                    </div>
-                  </div>
-                </label>
-              </div>
+
 
               {error && (
                 <div style={{

@@ -85,7 +85,7 @@ export default function ExplorerPage() {
                     <td style={{ color: 'var(--ink-muted)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '0.75rem' }}>{c.email}</td>
                     <td>
                       <span className={`status-pill ${c.tier === 'premium' ? 'running' : c.tier === 'enterprise' ? 'resolved' : 'open'}`}>
-                        {c.tier.toUpperCase()}
+                        {c.tier ? c.tier.toUpperCase() : 'STANDARD'}
                       </span>
                     </td>
                     <td style={{ color: 'var(--ink-muted)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '0.75rem' }}>{c.phone || '—'}</td>

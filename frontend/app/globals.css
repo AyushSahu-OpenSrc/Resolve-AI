@@ -38,32 +38,32 @@
 *, *::before, *::after { box-sizing: border-box; }
 
 html {
-  font-size: 14px;
+  font-size: 16px; /* Increased from 14px for bigger typography */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Times New Roman', Times, serif; /* Changed to Times New Roman */
   font-weight: 400;
   color: var(--ink);
   background-color: var(--surface);
-  line-height: 1.5;
+  line-height: 1.6;
   margin: 0;
 }
 
 a { color: inherit; }
 
 /* ── Typography scale ───────────────────────────────────────────────────── */
-.text-display  { font-size: 1.75rem; font-weight: 600; line-height: 1.15; letter-spacing: -0.02em; }
-.text-hero     { font-size: 2.25rem; font-weight: 600; line-height: 1.1;  letter-spacing: -0.025em; }
-.text-title    { font-size: 1.125rem; font-weight: 600; line-height: 1.3; }
-.text-label    { font-size: 0.8125rem; font-weight: 500; }
-.text-body     { font-size: 0.875rem; font-weight: 400; }
-.text-caption  { font-size: 0.75rem; font-weight: 400; color: var(--ink-muted); }
-.text-eyebrow  { font-size: 0.6875rem; font-weight: 500; color: var(--ink-muted); letter-spacing: 0.06em; text-transform: uppercase; }
-.text-mono     { font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace; font-size: 0.8125rem; }
+.text-display  { font-size: 2.25rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; } /* Scaled up */
+.text-hero     { font-size: 2.75rem; font-weight: 700; line-height: 1.15;  letter-spacing: -0.02em; } /* Scaled up */
+.text-title    { font-size: 1.5rem; font-weight: 700; line-height: 1.3; } /* Scaled up */
+.text-label    { font-size: 1rem; font-weight: 600; } /* Scaled up */
+.text-body     { font-size: 1.125rem; font-weight: 400; } /* Scaled up */
+.text-caption  { font-size: 0.875rem; font-weight: 400; color: var(--ink-muted); } /* Scaled up */
+.text-eyebrow  { font-size: 0.875rem; font-weight: 600; color: var(--ink-muted); letter-spacing: 0.05em; text-transform: uppercase; } /* Scaled up */
+.text-mono     { font-family: 'Times New Roman', Times, serif; font-size: 1rem; } /* Changed to Times New Roman to match request */
 
 /* ── Layout shell ───────────────────────────────────────────────────────── */
 .app-shell { display: flex; min-height: 100vh; }
