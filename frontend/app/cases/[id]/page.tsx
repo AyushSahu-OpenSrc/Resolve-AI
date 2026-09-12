@@ -142,7 +142,7 @@ function EventRow({ event, index }: { event: any; index: number }) {
 
 export default function CasePage({ params }: { params: Promise<{ id: string }> }) {
   const { id: caseId } = use(params)
-  const { events, caseDetail, isRunning, startPolling, refetch } = useAgentRun(caseId)
+  const { events, caseDetail, isRunning, startPolling, resetState, refetch } = useAgentRun(caseId)
   const logEndRef = useRef<HTMLDivElement>(null)
   const [prevInventory, setPrevInventory] = useState<Record<string, number>>({})
   const [changedWarehouses, setChangedWarehouses] = useState<Set<string>>(new Set())
@@ -193,10 +193,18 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
   const handleRerun = async () => {
     if (caseId !== 'CASE-DEMO-001') return
     setIsResolved(false)
+    // 1. Clear all stale events + state immediately so UI shows fresh
+    resetState()
     setResetLoading(true)
     try {
+      // 2. Reset DB + start agent in one call
       await api.runDemo()
+      // 3. Small delay so backend has time to write the first AgentEvent
+      await new Promise(r => setTimeout(r, 800))
+      // 4. Start polling fresh
       startPolling()
+    } catch (e: any) {
+      alert('Re-run failed: ' + (e.message || 'backend error'))
     } finally {
       setResetLoading(false)
     }

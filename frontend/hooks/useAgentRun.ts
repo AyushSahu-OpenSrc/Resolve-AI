@@ -18,6 +18,15 @@ export function useAgentRun(caseId: string | null) {
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isMountedRef = useRef(true)
 
+  const resetState = useCallback(() => {
+    if (pollTimerRef.current) clearTimeout(pollTimerRef.current)
+    lastTimestampRef.current = undefined
+    setEvents([])
+    setCaseDetail(null)
+    setIsRunning(false)
+    setError(null)
+  }, [])
+
   const fetchCaseDetail = useCallback(async () => {
     if (!caseId) return
     try {
@@ -90,5 +99,5 @@ export function useAgentRun(caseId: string | null) {
     poll()
   }, [poll])
 
-  return { events, caseDetail, isRunning, error, startPolling, refetch: fetchCaseDetail }
+  return { events, caseDetail, isRunning, error, startPolling, resetState, refetch: fetchCaseDetail }
 }
