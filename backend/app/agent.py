@@ -451,7 +451,7 @@ def run_agent(case_id: str) -> dict:
                     EventType.replan, EventStatus.REPLANNING,
                     f"Action failed ({result.get('error_code')}). "
                     f"Updated inventory: "
-                    f"{', '.join(f'{w[\"warehouse\"]}: {w[\"available\"]}' for w in updated_inventory)}. "
+                    f"{', '.join([str(w.get('warehouse')) + ': ' + str(w.get('available')) for w in updated_inventory])}. "
                     f"Requesting alternative resolution from agent...",
                     {"failure": result, "updated_inventory": updated_inventory}, None, seq()
                 )
