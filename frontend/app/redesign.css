@@ -518,3 +518,24 @@ button, a { -webkit-tap-highlight-color: transparent; }
  .ra-page-heading h1 { font-size:29px; }
  .exec-actions > button { flex:1; }
 }
+
+/* Case creation: one focused task and a textual, truthful explanation of execution. */
+.ra-new-case-layout { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(260px,.65fr); gap:clamp(22px,3vw,48px); align-items:start; }
+.ra-new-case-form { min-width:0; }
+.ra-new-case-form .panel { background:transparent; }
+.ra-new-case-form .panel-header { text-transform:none !important; letter-spacing:0 !important; font-size:16px !important; font-weight:400 !important; color:#263d30 !important; padding:14px 0; border-bottom:1px solid #d6ddd1; }
+.ra-new-case-form .panel > div:nth-child(2) { padding:18px 0 0 !important; }
+.ra-new-case-form .form-label { font-size:14px; color:#3f5446; }
+.ra-new-case-form .form-input, .ra-new-case-form .form-select, .ra-new-case-form .form-textarea { width:100%; }
+.ra-new-case-form .form-hint { font-size:13px; line-height:1.5; color:#768275; }
+.ra-new-case-form .btn-primary { background:#20382d; border-color:#20382d; }
+.ra-new-case-form .btn-primary:hover { background:#35513f; }
+.ra-new-case-form form > .panel { border:0; }
+.ra-new-case-aside { position:sticky; top:28px; border-top:2px solid #b85d3b; background:#eeefe7; padding:21px 23px 22px; }
+.ra-new-case-aside h2 { font-size:25px; line-height:1.12; color:#243a2e; font-weight:400; margin:0 0 10px; }
+.ra-new-case-aside p { color:#667669; font-size:14px; line-height:1.6; margin:0 0 14px; }
+.ra-new-case-aside ol { margin:0; padding:0; list-style:none; counter-reset:steps; border-top:1px solid #d2dacd; }
+.ra-new-case-aside li { counter-increment:steps; display:grid; grid-template-columns:25px 1fr; gap:10px; padding:12px 0; border-bottom:1px solid #d2dacd; color:#354d3d; font-size:14px; line-height:1.5; }
+.ra-new-case-aside li::before { content:counter(steps, decimal-leading-zero); color:#b85d3b; font-variant-numeric:tabular-nums; }
+.ra-new-case-aside p.ra-muted { font-size:12px; margin:15px 0 0; }
+@media(max-width:850px) { .ra-new-case-layout { grid-template-columns:1fr; } .ra-new-case-aside { position:static; } }
