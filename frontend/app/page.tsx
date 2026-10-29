@@ -2,16 +2,15 @@
 
 import Link from 'next/link'
 import { useUser } from '@clerk/nextjs'
-import { useEffect, useState } from 'react'
 
 function ProductPreview() {
   return <div className="hero-preview">
-    <div className="preview-top"><span className="preview-brand"><b>R</b> ResolveAI</span><span className="preview-live"><i/> Agent workspace</span><span className="preview-avatar">AS</span></div>
+    <div className="preview-top"><span className="preview-brand"><b>R</b> ResolveAI</span><span className="preview-live"><i/> Illustrative product preview</span><span className="preview-avatar">AS</span></div>
     <div className="preview-body">
       <aside className="preview-nav"><b className="preview-nav-mark">R</b>{['Overview','Customers','Orders','Inventory','Policies','Conflicts'].map((x,i)=><span key={x} className={i===5?'selected':''}><i>{['◫','♙','▤','◇','≋','◎'][i]}</i>{x}</span>)}</aside>
       <div className="preview-main"><div className="preview-heading"><div><small>RESOLUTION OPERATIONS / CASES</small><h3>Resolve the issue. Not just the ticket.</h3></div><span className="preview-open">● In progress</span></div>
         <div className="preview-metrics"><div><small>Case</small><strong>CASE-1042</strong><em>Damaged on arrival</em></div><div><small>Policy check</small><strong>Eligible</strong><em>Replacement permitted</em></div><div><small>Inventory</small><strong>2 locations</strong><em>Stock verified</em></div></div>
-        <div className="preview-work"><div className="preview-work-title">AGENT EXECUTION <span>LIVE TRACE</span></div>{[['✓','Investigated the order','Order and customer evidence retrieved'],['✓','Checked replacement policy','Within 7-day damage window'],['↻','Replanned fulfilment','Mumbai unavailable · Pune selected'],['○','Verify final outcome','Waiting for execution']].map((r,i)=><div className={'preview-event e'+i} key={r[1]}><b>{r[0]}</b><div><strong>{r[1]}</strong><small>{r[2]}</small></div><span>{i===3?'Pending':'Complete'}</span></div>)}</div>
+        <div className="preview-work"><div className="preview-work-title">AGENT EXECUTION <span>EXAMPLE TRACE</span></div>{[['✓','Investigated the order','Order and customer evidence retrieved'],['✓','Checked replacement policy','Within 7-day damage window'],['↻','Replanned fulfilment','Mumbai unavailable · Pune selected'],['○','Verify final outcome','Illustrative pending step']].map((r,i)=><div className={'preview-event e'+i} key={r[1]}><b>{r[0]}</b><div><strong>{r[1]}</strong><small>{r[2]}</small></div><span>{i===3?'Pending':'Complete'}</span></div>)}</div>
       </div>
     </div>
     <div className="preview-foot"><span>Evidence-led decisions</span><span>Policy-aware actions</span><span>Verifiable outcomes</span></div>
@@ -19,8 +18,6 @@ function ProductPreview() {
 }
 export default function LandingPage() {
  const {isLoaded,isSignedIn}=useUser()
- const [ready,setReady]=useState(false)
- useEffect(()=>setReady(true),[])
  const launchHref=isLoaded&&isSignedIn?'/dashboard':'/sign-in'
  return <main className="landing">
    <header className="landing-nav"><Link href="/" className="landing-logo"><span>R</span> ResolveAI</Link><nav><a href="#platform">Platform</a><a href="#workflow">How it works</a><a href="#principles">Principles</a></nav><div className="landing-actions"><Link href="/sign-in" className="landing-login">Sign in</Link><Link href={launchHref} className="landing-nav-cta">{isLoaded&&isSignedIn?'Open workspace':'Get started'} <span>↗</span></Link></div></header>
