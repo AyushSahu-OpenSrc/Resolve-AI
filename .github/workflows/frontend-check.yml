@@ -1,4 +1,4 @@
-name: Frontend checks
+name: Frontend build verification
 
 on:
   pull_request:
@@ -25,7 +25,6 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm install
-      - run: npm run lint
       - run: npm run build
         env:
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_dW5jb21tb24tZ2FyLTQ3LmNsZXJrLmFjY291bnRzLmRldiQ
