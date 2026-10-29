@@ -1,22 +1,20 @@
-'use client'
-
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { UserButton, useUser } from '@clerk/nextjs'
 
 const navItems = [
- {href:'/dashboard',label:'Overview',icon:'◫'},
- {href:'/explorer?tab=customers',label:'Customers',icon:'♙',tab:'customers'},
- {href:'/explorer?tab=orders',label:'Orders',icon:'▤',tab:'orders'},
- {href:'/explorer?tab=inventory',label:'Inventory',icon:'◇',tab:'inventory'},
- {href:'/policies',label:'Policies',icon:'≋'},
- {href:'/cases',label:'Conflicts',icon:'◎'},
- {href:'/agent-runs',label:'Agent runs',icon:'✳'},
- {href:'/fulfillment',label:'Fulfillment',icon:'↗'},
- {href:'/communications',label:'Communications',icon:'✉'},
- {href:'/imports',label:'Import center',icon:'⇧'},
- {href:'/onboarding',label:'Workspace settings',icon:'⚙'},
+ {href:'/dashboard',label:'Overview',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7"/><rect x="13.5" y="3.5" width="7" height="7"/><rect x="3.5" y="13.5" width="7" height="7"/><rect x="13.5" y="13.5" width="7" height="7"/></svg>},
+ {href:'/explorer?tab=customers',label:'Customers',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c.5-3.9 3.1-6 7.5-6s7 2.1 7.5 6"/></svg>,tab:'customers'},
+ {href:'/explorer?tab=orders',label:'Orders',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5h9l5 5V20.5H5z"/><path d="M14 3.5v5h5M8 13h8M8 16.5h8"/></svg>,tab:'orders'},
+ {href:'/explorer?tab=inventory',label:'Inventory',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg>,tab:'inventory'},
+ {href:'/policies',label:'Policies',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5h12M6 9.5h12M6 14.5h8M6 19.5h5"/><circle cx="4" cy="4.5" r=".5"/><circle cx="4" cy="9.5" r=".5"/></svg>},
+ {href:'/cases',label:'Conflicts',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 21 19H3z"/><path d="M12 9v4.5M12 16.5v.1"/></svg>},
+ {href:'/agent-runs',label:'Agent runs',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3M6 6l2.1 2.1M15.9 15.9 18 18M18 6l-2.1 2.1M8.1 15.9 6 18"/><circle cx="12" cy="12" r="4.5"/></svg>},
+ {href:'/fulfillment',label:'Fulfillment',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7h11v10h-11zM14.5 10h4l2 3v4h-6z"/><circle cx="7.5" cy="18" r="1.5"/><circle cx="17.5" cy="18" r="1.5"/></svg>},
+ {href:'/communications',label:'Communications',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="1"/><path d="m4 6 8 7 8-7"/></svg>},
+ {href:'/imports',label:'Import center',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3.5M7.5 8 12 3.5 16.5 8M4 14.5v5h16v-5"/></svg>},
+ {href:'/onboarding',label:'Workspace settings',icon:<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="m19.4 13.5 1.1.9-1.5 2.6-1.4-.5a7.9 7.9 0 0 1-1.4.8l-.3 1.5h-3l-.3-1.5a7.9 7.9 0 0 1-1.4-.8l-1.4.5-1.5-2.6 1.1-.9a6 6 0 0 1 0-1.6l-1.1-.9 1.5-2.6 1.4.5a7.9 7.9 0 0 1 1.4-.8l.3-1.5h3l.3 1.5a7.9 7.9 0 0 1 1.4.8l1.4-.5 1.5 2.6-1.1.9a6 6 0 0 1 0 1.6z"/></svg>},
 ]
 export function NavShell({children}:{children:React.ReactNode}){
  const pathname=usePathname();const router=useRouter();const [activeTab,setActiveTab]=useState('customers');const {isLoaded,isSignedIn,user}=useUser()
@@ -26,5 +24,5 @@ export function NavShell({children}:{children:React.ReactNode}){
  function isActive(item:typeof navItems[number]){if(item.tab)return pathname==='/explorer'&&activeTab===item.tab;return pathname===item.href||pathname.startsWith(item.href+'/')}
  if(pathname==='/'||pathname.startsWith('/sign-in')||pathname.startsWith('/sign-up'))return <>{children}</>
  if(!isLoaded||!isSignedIn||(!setupComplete&&pathname!=='/onboarding'))return <main className="ra-auth-loading"><span className="landing-logo"><span>R</span> ResolveAI</span><p>Checking workspace access…</p></main>
- return <div className="ra-shell"><aside className="ra-sidebar"><Link href="/dashboard" className="ra-brand"><span className="ra-brand-mark">R</span><span>Resolve<span className="ra-brand-accent">AI</span><small>RESOLUTION OPERATIONS</small></span></Link><div className="ra-workspace-label">YOUR WORKSPACE</div><nav className="ra-nav">{navItems.map(item=><Link key={item.href} href={item.href} onClick={()=>{if(item.tab)setActiveTab(item.tab)}} className={'ra-nav-item '+(isActive(item)?'active':'')}><span className="ra-nav-icon">{item.icon}</span><span>{item.label}</span></Link>)}</nav><div className="ra-sidebar-bottom"><div className="ra-agent-status"><span className="ra-status-dot"/><span><strong>Resolution engine</strong><small>API-backed operations</small></span></div><Link href="/onboarding" className="ra-upgrade"><span className="ra-upgrade-icon">✦</span><strong>Finish setup</strong><small>Connect data and policies</small><span className="ra-upgrade-arrow">↗</span></Link><div className="ra-sidebar-foot">RESOLVEAI 2.0</div></div></aside><main className="ra-main"><header className="ra-topbar"><div className="ra-search"><span>⌕</span><input aria-label="Search workspace" placeholder="Search conflicts, customers, orders…" onKeyDown={e=>{if(e.key==='Enter')router.push('/cases')}}/></div><div className="ra-topbar-right"><span className="ra-plan"><span className="ra-plan-mark">✳</span><span><strong>{user?.organizationMemberships?.[0]?.organization?.name||'My workspace'}</strong><small>Resolution workspace</small></span></span><span className="ra-topbar-divider"/><div className="ra-user"><span><strong>{user?.fullName||user?.primaryEmailAddress?.emailAddress||'Workspace member'}</strong><small>Signed in</small></span><UserButton afterSignOutUrl="/sign-in"/></div></div></header>{children}</main></div>
+ return <div className="ra-shell"><aside className="ra-sidebar"><Link href="/dashboard" className="ra-brand"><span className="ra-brand-mark">R</span><span className="ra-brand-name">Resolve<span className="ra-brand-accent">AI</span><small>RESOLUTION OPERATIONS</small></span></Link><div className="ra-workspace-label">YOUR WORKSPACE</div><nav className="ra-nav" aria-label="Workspace navigation">{navItems.map(item=><Link key={item.href} title={item.label} href={item.href} onClick={()=>{if(item.tab)setActiveTab(item.tab)}} className={'ra-nav-item '+(isActive(item)?'active':'')} aria-current={isActive(item)?'page':undefined}><span className="ra-nav-icon">{item.icon}</span><span>{item.label}</span></Link>)}</nav><div className="ra-sidebar-bottom"><div className="ra-agent-status"><span className="ra-status-dot"/><span><strong>Resolution engine</strong><small>API-backed operations</small></span></div><Link href="/onboarding" className="ra-upgrade"><span className="ra-upgrade-icon">↗</span><span><strong>Workspace setup</strong><small>Manage records and policy</small></span><span className="ra-upgrade-arrow" aria-hidden="true">→</span></Link><div className="ra-sidebar-foot">RESOLVEAI / OPERATIONS</div></div></aside><main className="ra-main"><header className="ra-topbar"><div className="ra-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg><input aria-label="Search workspace" placeholder="Search conflicts, customers, orders…" onKeyDown={e=>{if(e.key==='Enter')router.push('/cases')}}/></div><div className="ra-topbar-right"><span className="ra-plan"><span className="ra-plan-mark" aria-hidden="true">R</span><span><strong>{user?.organizationMemberships?.[0]?.organization?.name||'Your workspace'}</strong><small>Customer resolution</small></span></span><span className="ra-topbar-divider"/><div className="ra-user"><span><strong>{user?.fullName||user?.primaryEmailAddress?.emailAddress||'Workspace member'}</strong><small>Account</small></span><UserButton afterSignOutUrl="/sign-in"/></div></div></header>{children}</main></div>
 }
