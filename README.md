@@ -214,7 +214,7 @@ The frontend uses Next.js App Router. Clerk is integrated through `@clerk/nextjs
 4. Set `NEXT_PUBLIC_API_URL` to the deployed FastAPI URL when not running locally.
 5. Run `cd frontend && npm install && npm run lint && npm run build`.
 
-The auth pages are available at `/sign-in` and `/sign-up`. The server proxy only enforces authenticated access when `CLERK_SECRET_KEY` is configured; until then, treat this as an authentication UI integration, not a secured production deployment. Clerk identity is not yet mapped to a tenant in the SQLite data model, so multi-tenant data isolation is not claimed.
+The auth pages are available at `/sign-in` and `/sign-up`. The frontend server proxy only protects frontend routes when `CLERK_SECRET_KEY` is configured. The FastAPI backend does not yet verify Clerk tokens, and Clerk identity is not mapped to a tenant in the SQLite data model; therefore this is not yet a complete production authentication or multi-tenant authorization boundary.
 
 ## Current UI implementation notes
 
