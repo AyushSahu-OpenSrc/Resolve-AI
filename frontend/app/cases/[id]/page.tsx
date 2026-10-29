@@ -1,6 +1,8 @@
 'use client'
 
 import { use, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useUser } from '@clerk/nextjs'
 import Link from 'next/link'
 import { useAgentRun } from '@/hooks/useAgentRun'
 import { api, AgentEvent } from '@/lib/api'
@@ -17,14 +19,16 @@ function EventCard({event,index}:{event:AgentEvent,index:number}) {
  </article>
 }
 export default function CasePage({params}:{params:Promise<{id:string}>}) {
- const {id}=use(params);const {events,caseDetail,isRunning,startPolling,resetState,refetch,error}=useAgentRun(id)
+ const {id}=use(params);const router=useRouter();const {isLoaded,isSignedIn}=useUser();const {events,caseDetail,isRunning,startPolling,resetState,refetch,error}=useAgentRun(id)
  const [busy,setBusy]=useState(false);const [actionError,setActionError]=useState('')
  const demo=id==='CASE-DEMO-001'
  useEffect(()=>{if(caseDetail?.status==='running'||caseDetail?.status==='processing')startPolling()},[caseDetail?.status])
  async function run(){setBusy(true);setActionError('');try{if(demo){resetState();await api.runDemo()}else{await api.resolveCase(id)}startPolling()}catch(e){setActionError(e instanceof Error?e.message:'The agent could not be started. Check the backend connection.')}finally{setBusy(false)}}
  async function reset(){setBusy(true);setActionError('');try{await api.resetDemo();resetState();await refetch()}catch(e){setActionError(e instanceof Error?e.message:'Demo reset failed')}finally{setBusy(false)}}
+ useEffect(()=>{if(isLoaded&&!isSignedIn)router.replace('/sign-in')},[isLoaded,isSignedIn,router])
  const inventory=caseDetail?.inventory||[]
  const done=['resolved','verified','completed'].includes((caseDetail?.status||'').toLowerCase())
+ if(!isLoaded||!isSignedIn)return <main className="ra-auth-loading"><span className="landing-logo"><span>R</span> ResolveAI</span><p>Checking workspace access…</p></main>
  return <div className="exec-screen"><div className="ra-exec">
   <Link href="/cases" className="exec-back">← <span>Back to conflicts</span></Link>
   <div className="exec-header"><div><div className="exec-title-kicker">RESOLUTION WORKSPACE / CASE DETAIL</div><h1>Agent resolution <span className="exec-status">{label(caseDetail?.status||'Loading')}</span></h1><p>Investigate the evidence, follow the policy, and verify the operational outcome for this customer case.</p></div><div className="exec-actions"><button className="exec-button" onClick={()=>refetch()} disabled={busy}>Refresh state</button>{demo&&<button className="exec-button" onClick={reset} disabled={busy}>Reset demo</button>}<button className="exec-button primary" onClick={run} disabled={busy||isRunning||done}>{busy?'Starting…':isRunning?'Agent running':done?'Verified resolution':'Run ResolveAI ↗'}</button></div></div>
