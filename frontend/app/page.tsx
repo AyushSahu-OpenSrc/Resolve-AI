@@ -5,183 +5,36 @@ import Link from 'next/link'
 import { NavShell } from '@/components/NavShell'
 import { api } from '@/lib/api'
 
-type SupportCase = {
-  id: string
-  customer_id: string
-  customer_name: string | null
-  order_id: string
-  customer_message: string
-  status: string
-  resolution_summary: string | null
-  created_at: string
-  updated_at: string
-  resolved_at: string | null
-}
-
-function shortTime(value: string) {
-  const date = new Date(value + (value.includes('Z') ? '' : 'Z'))
-  if (Number.isNaN(date.getTime())) return '—'
-  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
-}
-
-function Status({ value }: { value: string }) {
-  return <span className={`status-pill ${value.toLowerCase().replace(/_/g, '-')}`}>{value.replace(/_/g, ' ').toUpperCase()}</span>
-}
-
-const steps = [
-  { n: '01', title: 'Observe', detail: 'Retrieve customer, order, inventory and policy evidence.' },
-  { n: '02', title: 'Decide', detail: 'Choose a path using the available evidence and policy rules.' },
-  { n: '03', title: 'Act', detail: 'Run a permitted operation against the application database.' },
-  { n: '04', title: 'Verify', detail: 'Check the resulting state before calling the case resolved.' },
-]
-
-export default function HomePage() {
-  const [cases, setCases] = useState<SupportCase[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let active = true
-    api.getCases()
-      .then(rows => { if (active) setCases(rows) })
-      .catch(err => { if (active) setError(err instanceof Error ? err.message : 'Could not load cases') })
-      .finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
-  }, [])
-
-  const stats = useMemo(() => ({
-    total: cases.length,
-    resolved: cases.filter(c => c.status.toLowerCase() === 'resolved').length,
-    active: cases.filter(c => ['running', 'open'].includes(c.status.toLowerCase())).length,
-    escalated: cases.filter(c => c.status.toLowerCase() === 'escalated').length,
-  }), [cases])
-
-  const recent = [...cases].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5)
-
-  return (
-    <NavShell>
-      <div className="overview-page">
-        <header className="overview-topbar">
-          <div>
-            <div className="text-caption">WORKSPACE / OVERVIEW</div>
-            <h1 className="text-display" style={{ margin: '0.35rem 0 0' }}>Customer resolution, under control.</h1>
-            <p className="text-body" style={{ color: 'var(--ink-muted)', maxWidth: 690, margin: '0.65rem 0 0' }}>
-              Investigate a case, act on real application data, and verify the outcome before it is marked resolved.
-            </p>
-          </div>
-          <div className="overview-actions">
-            <Link href="/cases" className="btn btn-secondary">View cases</Link>
-            <Link href="/cases/new" className="btn btn-primary">＋ Create case</Link>
-          </div>
-        </header>
-
-        <section className="overview-stats" aria-label="Case statistics">
-          {[
-            { label: 'Total cases', value: loading ? '—' : stats.total, note: 'Cases in this workspace', tone: 'neutral' },
-            { label: 'Resolved', value: loading ? '—' : stats.resolved, note: 'Marked resolved in data', tone: 'good' },
-            { label: 'Open or running', value: loading ? '—' : stats.active, note: 'May need attention', tone: 'signal' },
-            { label: 'Escalated', value: loading ? '—' : stats.escalated, note: 'Needs human review', tone: 'warning' },
-          ].map(item => (
-            <div className="overview-stat panel" key={item.label}>
-              <div className="stat-topline"><span>{item.label}</span><span className={`stat-mark ${item.tone}`} /></div>
-              <div className="stat-number">{item.value}</div>
-              <div className="text-caption">{item.note}</div>
-            </div>
-          ))}
-        </section>
-
-        <section className="overview-grid">
-          <div className="panel overview-main-panel">
-            <div className="overview-panel-head">
-              <div>
-                <div className="text-eyebrow">Agent operating model</div>
-                <h2 className="text-title" style={{ margin: '0.3rem 0 0' }}>A resolution loop with evidence</h2>
-              </div>
-              <span className="overview-tag">POLICY-DRIVEN</span>
-            </div>
-            <div className="agent-steps">
-              {steps.map((step, index) => (
-                <div className="agent-step" key={step.n}>
-                  <div className="agent-step-index">{step.n}</div>
-                  <div className="agent-step-copy">
-                    <h3>{step.title}</h3>
-                    <p>{step.detail}</p>
-                  </div>
-                  {index < steps.length - 1 && <div className="agent-step-connector" aria-hidden="true" />}
-                </div>
-              ))}
-            </div>
-            <div className="overview-note">
-              <span className="note-dot" />
-              A case should only be treated as resolved after the backend confirms the resulting state.
-            </div>
-          </div>
-
-          <aside className="panel overview-side-panel">
-            <div className="overview-panel-head">
-              <div>
-                <div className="text-eyebrow">Quick actions</div>
-                <h2 className="text-title" style={{ margin: '0.3rem 0 0' }}>Continue work</h2>
-              </div>
-            </div>
-            <Link href="/cases/new" className="quick-action">
-              <span className="quick-action-icon">＋</span>
-              <span><strong>Create a case</strong><small>Give the agent a customer issue to investigate.</small></span>
-              <span className="quick-chevron">↗</span>
-            </Link>
-            <Link href="/cases" className="quick-action">
-              <span className="quick-action-icon">≡</span>
-              <span><strong>Review case queue</strong><small>Inspect statuses and open an execution record.</small></span>
-              <span className="quick-chevron">↗</span>
-            </Link>
-            <div className="overview-side-foot">
-              <span className="live-indicator" />
-              <span>{loading ? 'Connecting to case data…' : error ? 'Case data unavailable' : 'Case data loaded from the backend'}</span>
-            </div>
-          </aside>
-        </section>
-
-        <section className="panel overview-recent">
-          <div className="overview-panel-head">
-            <div>
-              <div className="text-eyebrow">Latest records</div>
-              <h2 className="text-title" style={{ margin: '0.3rem 0 0' }}>Recent cases</h2>
-            </div>
-            <Link href="/cases" className="text-link">Open case queue ↗</Link>
-          </div>
-          {error ? (
-            <div className="overview-empty">
-              <strong>Could not load live case data.</strong>
-              <span>{error}. Check that the backend is running and the API URL is configured.</span>
-            </div>
-          ) : loading ? (
-            <div className="overview-empty">Loading cases from the backend…</div>
-          ) : recent.length === 0 ? (
-            <div className="overview-empty">
-              <strong>No cases yet.</strong>
-              <span>Create a case to see the agent investigation and verified result here.</span>
-              <Link href="/cases/new" className="btn btn-primary">Create first case</Link>
-            </div>
-          ) : (
-            <div className="table-scroll">
-              <table className="data-table">
-                <thead><tr><th>Case</th><th>Customer</th><th>Issue</th><th>Status</th><th>Created</th><th /></tr></thead>
-                <tbody>{recent.map(c => (
-                  <tr key={c.id}>
-                    <td><Link href={`/cases/${c.id}`} className="mono overview-case-link">{c.id}</Link></td>
-                    <td><span className="overview-customer">{c.customer_name || c.customer_id}</span><small className="overview-subline">{c.customer_id}</small></td>
-                    <td><span className="overview-issue">{c.customer_message}</span></td>
-                    <td><Status value={c.status} /></td>
-                    <td className="mono overview-date">{shortTime(c.created_at)}</td>
-                    <td><Link href={`/cases/${c.id}`} className="text-link">Inspect</Link></td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
-          )}
-        </section>
-        <footer className="overview-footer"><span>ResolveAI</span><span>Decisions should be explainable. Outcomes should be verified.</span></footer>
-      </div>
-    </NavShell>
-  )
+type CaseRow = { id:string; customer_id:string; customer_name:string|null; order_id:string; customer_message:string; status:string; resolution_summary:string|null; created_at:string; updated_at:string; resolved_at:string|null }
+type InventoryRow = { product_id?:string; sku?:string; product_name?:string; name?:string; quantity?:number; available?:number; reserved_quantity?:number; warehouse?:string }
+type PolicyRow = { id:string; category?:string; policy_text?:string; active?:boolean; enabled?:boolean }
+const statusLabel=(s:string)=>s.replace(/_/g,' ').toLowerCase().replace(/\b\w/g,m=>m.toUpperCase())
+const dateLabel=(s:string)=>{const d=new Date(s+(s.includes('Z')?'':'Z'));return Number.isNaN(d.getTime())?'—':d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}
+function Tag({value}:{value:string}){const v=value.toLowerCase();const cls=['resolved','verified','completed'].includes(v)?'': ['running','replanning'].includes(v)?'warning':['escalated','open','pending'].includes(v)?'info':['failed','blocked','error'].includes(v)?'danger':'';return <span className={`ra-tag ${cls}`}>{statusLabel(value)}</span>}
+function MiniBars({values}:{values:number[]}){const max=Math.max(1,...values);return <svg className="ra-chart" viewBox="0 0 420 124" role="img" aria-label="Case counts by status"><line x1="12" y1="104" x2="408" y2="104" stroke="#e5edf5"/>{values.map((v,i)=>{const h= Math.max(4,(v/max)*76);return <g key={i}><rect x={28+i*78} y={104-h} width="32" height={h} rx="5" fill={['#21b8c8','#298fd0','#35c69a','#8c76e9','#f0b84b'][i%5]} opacity=".9"/><text x={44+i*78} y="119" textAnchor="middle" fontSize="9" fill="#8797ab">{['Open','Running','Resolved','Escalated','Other'][i]}</text><text x={44+i*78} y={96-h} textAnchor="middle" fontSize="10" fill="#516781">{v}</text></g>})}</svg>}
+export default function HomePage(){
+ const [cases,setCases]=useState<CaseRow[]>([]);const [inventory,setInventory]=useState<InventoryRow[]>([]);const [policies,setPolicies]=useState<PolicyRow[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('')
+ useEffect(()=>{let alive=true;Promise.all([api.getCases(),api.getInventory(),api.getPolicies()]).then(([c,i,p])=>{if(!alive)return;setCases(c);setInventory(i);setPolicies(p)}).catch(e=>{if(alive)setError(e instanceof Error?e.message:'Could not load workspace data')}).finally(()=>{if(alive)setLoading(false)});return()=>{alive=false}},[])
+ const stats=useMemo(()=>{const s=cases.reduce((a,c)=>{const k=c.status.toLowerCase();a[k]=(a[k]||0)+1;return a},{} as Record<string,number>);return {total:cases.length,open:s.open||s.pending||0,running:s.running||s.replanning||0,resolved:s.resolved||s.verified||0,escalated:s.escalated||0,other:cases.filter(c=>!['open','pending','running','replanning','resolved','verified','escalated'].includes(c.status.toLowerCase())).length}},[cases])
+ const recent=[...cases].sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime()).slice(0,5)
+ const lowStock=inventory.filter(i=>(i.available??i.quantity??999)<=5).slice(0,4)
+ const activePolicies=policies.filter(p=>p.active!==false&&p.enabled!==false).length
+ const statCards=[{label:'Total conflicts',value:stats.total,icon:'▣',tone:'blue',note:'Cases currently in workspace'},{label:'Pending resolution',value:stats.open+stats.running,icon:'◷',tone:'amber',note:'Open or running cases'},{label:'Resolved',value:stats.resolved,icon:'✓',tone:'green',note:'Verified status in case data'},{label:'Escalated',value:stats.escalated,icon:'↗',tone:'purple',note:'Requires human attention'},{label:'Policy rules',value:policies.length,icon:'▤',tone:'cyan',note:`${activePolicies} enabled or active`}]
+ return <NavShell><div className="ra-page">
+  <div className="ra-page-heading"><div><div className="ra-eyebrow">WORKSPACE / OVERVIEW</div><h1>Conflict Resolution Center</h1><p>AI-powered customer case resolution with policy-driven decisions and verified operations.</p></div><div className="ra-actions"><Link className="ra-button" href="/imports">⇧ Import data</Link><Link className="ra-button primary" href="/cases/new">＋ Create case</Link></div></div>
+  {error&&<div className="ra-alert" style={{marginBottom:16}}>Workspace data could not be fully loaded: {error}. The dashboard is showing no invented figures; check the backend connection.</div>}
+  <div className="ra-grid ra-grid-5">{statCards.map(s=><div className="ra-card ra-stat" key={s.label}><div className={`ra-stat-icon tone-${s.tone}`}>{s.icon}</div><div className="ra-stat-label">{s.label}</div><div className="ra-stat-value">{loading?'—':s.value}</div><div className="ra-stat-note">{s.note}</div></div>)}</div>
+  <div className="ra-dashboard-grid" style={{marginTop:16}}>
+   <section className="ra-card"><div className="ra-card-head"><div><h2>Case status overview</h2><p>Counts derived from live case records</p></div><Link className="ra-link" href="/cases">View all cases ↗</Link></div><div className="ra-card-body"><div className="ra-chart-legend"><span><i style={{background:'#21b8c8'}}/>Open</span><span><i style={{background:'#298fd0'}}/>Running</span><span><i style={{background:'#35c69a'}}/>Resolved</span><span><i style={{background:'#8c76e9'}}/>Escalated</span><span><i style={{background:'#f0b84b'}}/>Other</span></div><MiniBars values={[stats.open,stats.running,stats.resolved,stats.escalated,stats.other]}/><div className="ra-chart-foot"><span>Case records: {loading?'loading':cases.length}</span><span>Last refreshed on page load</span></div></div></section>
+   <section className="ra-card"><div className="ra-card-head"><div><h2>Agent operations</h2><p>Execution principles</p></div><span className="ra-tag info">POLICY-DRIVEN</span></div><div className="ra-card-body"><div className="ra-operation-step"><span>01</span><div><strong>Investigate</strong><p>Retrieve customer, order, inventory and policy evidence.</p></div></div><div className="ra-operation-step"><span>02</span><div><strong>Choose a resolution</strong><p>Evaluate available actions against configured business policies.</p></div></div><div className="ra-operation-step"><span>03</span><div><strong>Execute and adapt</strong><p>Use backend tools and replan when a real operation fails.</p></div></div><div className="ra-operation-step"><span>04</span><div><strong>Verify the outcome</strong><p>Check resulting state before marking a case resolved.</p></div></div><Link href="/agent-runs" className="ra-button" style={{width:'100%',marginTop:10}}>Inspect agent runs ↗</Link></div></section>
+  </div>
+  <div className="ra-dashboard-bottom" style={{marginTop:16}}>
+   <section className="ra-card"><div className="ra-card-head"><div><h2>Recent conflicts</h2><p>Latest cases returned by the backend</p></div><Link href="/cases" className="ra-link">Open case queue ↗</Link></div>{loading?<div className="ra-empty">Loading case records…</div>:recent.length===0?<div className="ra-empty"><strong>No cases yet</strong>Create a case to begin an agent investigation.<div style={{marginTop:12}}><Link href="/cases/new" className="ra-button primary">Create first case</Link></div></div>:<div className="ra-table-wrap"><table className="ra-table"><thead><tr><th>Case ID</th><th>Customer</th><th>Issue</th><th>Status</th><th>Created</th><th/></tr></thead><tbody>{recent.map(c=><tr key={c.id}><td><Link href={`/cases/${c.id}`} className="ra-id">{c.id}</Link></td><td><span className="ra-strong">{c.customer_name||c.customer_id}</span><div className="ra-muted" style={{fontSize:'.62rem',marginTop:3}}>{c.customer_id}</div></td><td style={{maxWidth:240}}>{c.customer_message}</td><td><Tag value={c.status}/></td><td>{dateLabel(c.created_at)}</td><td><Link href={`/cases/${c.id}`} className="ra-link">Inspect</Link></td></tr>)}</tbody></table></div>}</section>
+   <div className="ra-side-stack">
+    <section className="ra-card"><div className="ra-card-head"><div><h2>Inventory alerts</h2><p>Based on current inventory records</p></div><Link href="/explorer" className="ra-link">View ↗</Link></div><div className="ra-card-body">{loading?<div className="ra-muted">Loading…</div>:lowStock.length===0?<div className="ra-quiet-empty"><span>✓</span><div><strong>No low-stock alerts detected</strong><small>Only based on returned inventory data.</small></div></div>:lowStock.map((i,n)=><div className="ra-inventory-row" key={i.sku||i.product_id||n}><span className="ra-product-mark">▦</span><div><strong>{i.product_name||i.name||i.sku||i.product_id||'Inventory item'}</strong><small>{i.sku||i.product_id||i.warehouse||'Inventory record'}</small></div><Tag value={(i.available??i.quantity??0)<=0?'Critical':'Low stock'}/></div>)}</div></section>
+    <section className="ra-card"><div className="ra-card-head"><div><h2>Quick actions</h2><p>Continue workspace setup</p></div></div><div className="ra-quick-links"><Link href="/imports"><span>⇧</span><div><strong>Import customer data</strong><small>Customers, orders and inventory</small></div><b>↗</b></Link><Link href="/policies"><span>▤</span><div><strong>Configure policies</strong><small>{policies.length} policy records available</small></div><b>↗</b></Link><Link href="/communications"><span>✉</span><div><strong>Customer communications</strong><small>Prepare a resolution message</small></div><b>↗</b></Link></div></section>
+   </div>
+  </div>
+  <div className="ra-page-footer"><span>ResolveAI · Agentic customer resolution</span><span>Dashboard values reflect backend records; no sample KPIs are fabricated.</span></div>
+ </div></NavShell>
 }
