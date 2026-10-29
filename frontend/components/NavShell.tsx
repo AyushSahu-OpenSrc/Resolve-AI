@@ -2,102 +2,25 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-
-const icons = {
-  home: (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-      <polyline points="9 22 9 12 15 12 15 22"/>
-    </svg>
-  ),
-  cases: (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
-      <line x1="16" x2="16" y1="2" y2="6"/>
-      <line x1="8" x2="8" y1="2" y2="6"/>
-      <line x1="3" x2="21" y1="10" y2="10"/>
-      <path d="m9 16 2 2 4-4"/>
-    </svg>
-  ),
-  plus: (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <path d="M12 8v8M8 12h8"/>
-    </svg>
-  ),
-  database: (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <ellipse cx="12" cy="5" rx="9" ry="3"/>
-      <path d="M3 5V19A9 3 0 0 0 21 19V5"/>
-      <path d="M3 12A9 3 0 0 0 21 12"/>
-    </svg>
-  ),
-  chart: (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" x2="18" y1="20" y2="10"/>
-      <line x1="12" x2="12" y1="20" y2="4"/>
-      <line x1="6" x2="6" y1="20" y2="14"/>
-    </svg>
-  ),
-}
+import { useEffect, useState } from 'react'
+import { UserButton, useUser } from '@clerk/nextjs'
 
 const navItems = [
-  { href: '/',          label: 'Overview',      icon: icons.home },
-  { href: '/cases',     label: 'Cases',         icon: icons.cases },
-  { href: '/cases/new', label: 'New Case',      icon: icons.plus },
-  { href: '/explorer',  label: 'Data Explorer', icon: icons.database },
-  { href: '/analytics', label: 'Analytics',     icon: icons.chart },
+  { href: '/', label: 'Dashboard', icon: '▦' },
+  { href: '/explorer?tab=customers', label: 'Customers', icon: '♙', tab:'customers' },
+  { href: '/explorer?tab=orders', label: 'Orders', icon: '▣', tab:'orders' },
+  { href: '/explorer?tab=inventory', label: 'Inventory', icon: '▤', tab:'inventory' },
+  { href: '/policies', label: 'Policies', icon: '▧' },
+  { href: '/cases', label: 'Conflicts', icon: '◇' },
+  { href: '/agent-runs', label: 'Agent Runs', icon: '✧' },
+  { href: '/fulfillment', label: 'Fulfillment', icon: '▱' },
+  { href: '/communications', label: 'Communications', icon: '✉' },
+  { href: '/onboarding', label: 'Settings', icon: '⚙' },
+  { href: '/imports', label: 'Import Center', icon: '⇧' },
 ]
-
 export function NavShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
-
-  function isActive(href: string) {
-    if (href === '/') return pathname === '/'
-    return pathname.startsWith(href)
-  }
-
-  return (
-    <div className="app-shell">
-      <nav className="nav-rail">
-        {/* Logo */}
-        <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '1.25rem', flexShrink: 0, width: '100%', padding: '0 1.0625rem' }}>
-          <div className="nav-logo" style={{ flexShrink: 0 }}>
-            <span style={{ color: '#fff', fontWeight: 600, fontSize: '0.875rem', fontFamily: 'IBM Plex Mono, monospace' }}>R</span>
-          </div>
-          <span className="nav-rail-label" style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--ink)', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '-0.01em' }}>
-            ResolveAI
-          </span>
-        </Link>
-
-        {navItems.map(item => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`nav-rail-item ${isActive(item.href) ? 'active' : ''}`}
-            title={item.label}
-          >
-            <span style={{ flexShrink: 0, display: 'flex' }}>{item.icon}</span>
-            <span className="nav-rail-label">{item.label}</span>
-          </Link>
-        ))}
-
-        {/* Version / bottom area */}
-        <div style={{ marginTop: 'auto', padding: '0 1.0625rem', width: '100%' }}>
-          <div className="nav-rail-label" style={{
-            fontSize: '0.875rem',
-            fontFamily: 'Times New Roman, Times, serif',
-            color: 'var(--ink-faint)',
-            letterSpacing: '0.04em',
-          }}>
-            v1.0.0
-          </div>
-        </div>
-      </nav>
-
-      <main className="main-content">
-        {children}
-      </main>
-    </div>
-  )
+ const pathname=usePathname();const [activeTab,setActiveTab]=useState('customers');const {isLoaded,isSignedIn,user}=useUser()
+ useEffect(()=>{if(typeof window!=='undefined')setActiveTab(new URLSearchParams(window.location.search).get('tab')||'customers')},[pathname])
+ function isActive(item:typeof navItems[number]){if(item.href==='/')return pathname==='/';if(item.tab)return pathname==='/explorer'&&activeTab===item.tab;return pathname===item.href||pathname.startsWith(item.href+'/')}
+ return <div className="ra-shell"><aside className="ra-sidebar"><Link href="/" className="ra-brand"><span className="ra-brand-mark">R</span><span>Resolve<span className="ra-brand-accent">AI</span><small>RESOLUTION OPERATIONS</small></span></Link><div className="ra-workspace-label">WORKSPACE</div><nav className="ra-nav">{navItems.map(item=><Link key={item.href} href={item.href} onClick={()=>{if(item.tab)setActiveTab(item.tab)}} className={'ra-nav-item '+(isActive(item)?'active':'')}><span className="ra-nav-icon">{item.icon}</span><span>{item.label}</span>{item.href==='/cases'&&<span className="ra-nav-badge">•</span>}</Link>)}</nav><div className="ra-sidebar-bottom"><div className="ra-agent-status"><span className="ra-status-dot"/><span><strong>Agent system</strong><small>Connected to workspace API</small></span></div><Link href="/onboarding" className="ra-upgrade"><span className="ra-upgrade-icon">✦</span><strong>Workspace setup</strong><small>Connect your data and policies</small><span className="ra-upgrade-arrow">↗</span></Link><div className="ra-sidebar-foot">RESOLVEAI · EARLY ACCESS</div></div></aside><main className="ra-main"><header className="ra-topbar"><div className="ra-search"><span>⌕</span><input aria-label="Search workspace" placeholder="Search customers, orders, cases, policies…" onKeyDown={e=>{if(e.key==='Enter')window.location.href='/cases'}}/></div><div className="ra-topbar-right"><span className="ra-plan"><span className="ra-plan-mark">✧</span><span><strong>{user?.organizationMemberships?.[0]?.organization?.name||'My workspace'}</strong><small>Resolution workspace</small></span></span><span className="ra-topbar-divider"/>{isLoaded&&isSignedIn?<div className="ra-user"><span><strong>{user.fullName||user.primaryEmailAddress?.emailAddress||'Workspace user'}</strong><small>Workspace member</small></span><UserButton afterSignOutUrl="/sign-in"/></div>:<Link href="/sign-in" className="ra-signin-link">Sign in ↗</Link>}</div></header>{children}</main></div>
 }

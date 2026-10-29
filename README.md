@@ -203,3 +203,22 @@ Four critical tests:
 - **Streaming**: Replace 700ms polling with SSE for sub-200ms event delivery
 - **Cost tracking**: Track Gemini API tokens per case for cost attribution
 - **A/B testing**: Compare resolution quality between Gemini models
+
+## Frontend authentication and workspace UI
+
+The frontend uses Next.js App Router. Clerk is integrated through `@clerk/nextjs`; Next.js does not read `VITE_CLERK_PUBLISHABLE_KEY` (that prefix is for Vite), so use `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` instead.
+
+1. Copy `frontend/.env.example` to `frontend/.env.local`.
+2. Keep the supplied Clerk **publishable** test key in `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`.
+3. Add the matching Clerk **secret key** as `CLERK_SECRET_KEY` in your local environment and hosting settings. Never commit the secret key.
+4. Set `NEXT_PUBLIC_API_URL` to the deployed FastAPI URL when not running locally.
+5. Run `cd frontend && npm install && npm run lint && npm run build`.
+
+The auth pages are available at `/sign-in` and `/sign-up`. The frontend server proxy only protects frontend routes when `CLERK_SECRET_KEY` is configured. The FastAPI backend does not yet verify Clerk tokens, and Clerk identity is not mapped to a tenant in the SQLite data model; therefore this is not yet a complete production authentication or multi-tenant authorization boundary.
+
+## Current UI implementation notes
+
+- Dashboard figures are derived from the current case, inventory, and policy APIs; the interface does not insert the sample KPI values shown in visual references.
+- Import center currently supports the backend's existing CSV endpoints for customers, orders, and inventory. XLSX parsing and conflicts/cases import need backend work.
+- Communications creates a reviewable draft using the device's default email handler. Gmail OAuth, in-app send, and delivery tracking require a separately configured Google OAuth integration.
+- Fulfillment is currently a read-only view of existing order and inventory records. Dispatch/reservation actions must be wired to verified backend operations before being presented as completed.

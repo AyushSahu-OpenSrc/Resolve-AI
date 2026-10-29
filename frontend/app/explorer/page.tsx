@@ -42,6 +42,11 @@ export default function ExplorerPage() {
     fetchData()
   }, [tab])
 
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab')
+    if (requested === 'customers' || requested === 'orders' || requested === 'inventory' || requested === 'policies') setTab(requested)
+  }, [])
+
   const tabs: Tab[] = ['customers', 'orders', 'inventory', 'policies']
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
