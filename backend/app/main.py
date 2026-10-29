@@ -224,28 +224,73 @@ def list_inventory(session: Session = Depends(get_session)):
 
 @app.post("/api/import/inventory")
 async def import_inventory(file: UploadFile = File(...), session: Session = Depends(get_session)):
-    if not file.filename.endswith(".csv"):
+    """Import inventory rows and upsert the associated product catalog records."""
+    if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(400, "Only CSV files are supported")
-    
+
     contents = await file.read()
-    decoded = contents.decode("utf-8")
+    try:
+        decoded = contents.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(400, "CSV must be UTF-8 encoded")
+
     reader = csv.DictReader(io.StringIO(decoded))
-    
+    required = {"id", "product_id", "warehouse", "quantity"}
+    headers = {h.strip().lower() for h in (reader.fieldnames or []) if h}
+    if not required.issubset(headers):
+        raise HTTPException(400, "Inventory CSV requires columns: id, product_id, warehouse, quantity")
+
     count = 0
-    for row in reader:
-        inv = session.get(Inventory, row.get("id"))
-        if not inv:
-            inv = Inventory(
-                id=row.get("id"), product_id=row.get("product_id"), warehouse=row.get("warehouse"),
-                quantity=int(row.get("quantity", 0)), reserved_quantity=int(row.get("reserved_quantity", 0))
-            )
-        else:
-            if row.get("quantity"): inv.quantity = int(row.get("quantity"))
-            if row.get("reserved_quantity"): inv.reserved_quantity = int(row.get("reserved_quantity"))
-        inv.updated_at = _now()
-        session.add(inv)
-        count += 1
-    session.commit()
+    try:
+        for raw in reader:
+            row = {(k or "").strip().lower(): (v or "").strip() for k, v in raw.items()}
+            inv_id = row.get("id")
+            product_id = row.get("product_id")
+            warehouse = row.get("warehouse")
+            if not inv_id or not product_id or not warehouse:
+                raise HTTPException(400, "Every inventory row needs id, product_id and warehouse")
+            try:
+                quantity = int(row.get("quantity") or "0")
+                reserved = int(row.get("reserved_quantity") or "0")
+                price = float(row.get("price") or "0")
+            except ValueError:
+                raise HTTPException(400, f"Invalid numeric value in inventory row {count + 2}")
+            if quantity < 0 or reserved < 0 or reserved > quantity or price < 0:
+                raise HTTPException(400, f"Invalid quantity, reservation or price in inventory row {count + 2}")
+
+            product = session.get(Product, product_id)
+            product_name = row.get("product_name") or row.get("name") or product_id
+            sku = row.get("sku") or product_id
+            category = row.get("category") or "general"
+            if product is None:
+                product = Product(id=product_id, name=product_name, sku=sku, category=category, price=price)
+            else:
+                product.name = product_name or product.name
+                product.sku = sku or product.sku
+                product.category = category or product.category
+                if row.get("price"):
+                    product.price = price
+            session.add(product)
+
+            inv = session.get(Inventory, inv_id)
+            if inv is None:
+                inv = Inventory(id=inv_id, product_id=product_id, warehouse=warehouse,
+                                quantity=quantity, reserved_quantity=reserved)
+            else:
+                inv.product_id = product_id
+                inv.warehouse = warehouse
+                inv.quantity = quantity
+                inv.reserved_quantity = reserved
+            inv.updated_at = _now()
+            session.add(inv)
+            count += 1
+        session.commit()
+    except HTTPException:
+        session.rollback()
+        raise
+    except Exception as exc:
+        session.rollback()
+        raise HTTPException(400, f"Inventory import failed; no rows were committed: {exc}")
     return {"status": "success", "imported": count}
 
 
