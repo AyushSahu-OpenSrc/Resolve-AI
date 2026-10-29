@@ -30,7 +30,6 @@ export default function NewCasePage() {
     customer_id: '',
     order_id: '',
     customer_message: '',
-    demo_mode: false,
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -51,15 +50,6 @@ export default function NewCasePage() {
       setFilteredOrders(orders)
     }
   }, [form.customer_id, orders])
-
-  const prefillDemo = () => {
-    setForm({
-      customer_id: 'CUST-001',
-      order_id: 'ORD-1042',
-      customer_message: 'My order arrived damaged. I want a replacement.',
-      demo_mode: true,
-    })
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -83,17 +73,17 @@ export default function NewCasePage() {
 
   return (
     <NavShell>
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Link href="/cases" style={{ color: 'var(--ink-muted)', textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
-            <ChevronLeft />
-          </Link>
-          <span style={{ color: 'var(--line)' }}>/</span>
-          <h1 className="text-title">New Case</h1>
-        </div>
-      </div>
-
-      <div style={{ maxWidth: 580, margin: '2.5rem auto', padding: '0 2rem' }}>
+      <main className="ra-page ra-new-case">
+        <header className="ra-page-heading">
+          <div>
+            <div className="ra-eyebrow">Customer operations / New record</div>
+            <h1>Open a case</h1>
+            <p>Link a customer to one of their orders, then give the agent a clear outcome to work toward.</p>
+          </div>
+          <Link href="/cases" className="ra-button">Back to cases</Link>
+        </header>
+        <div className="ra-new-case-layout">
+          <div className="ra-new-case-form">
 
 
 
@@ -227,7 +217,20 @@ export default function NewCasePage() {
             ))}
           </div>
         </div>
-      </div>
+          </div>
+          <aside className="ra-new-case-aside">
+            <h2>What ResolveAI does next</h2>
+            <p>The agent works toward the customer's requested outcome against the records and policies in this workspace.</p>
+            <ol>
+              <li>Inspect customer, order and product evidence</li>
+              <li>Evaluate the configured policy</li>
+              <li>Choose tools and adapt to real failures</li>
+              <li>Verify the resulting order and inventory state</li>
+            </ol>
+            <p className="ra-muted">Actions are reported only after the backend records their outcome.</p>
+          </aside>
+        </div>
+      </main>
     </NavShell>
   )
 }
