@@ -539,3 +539,24 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .ra-new-case-aside li::before { content:counter(steps, decimal-leading-zero); color:#b85d3b; font-variant-numeric:tabular-nums; }
 .ra-new-case-aside p.ra-muted { font-size:12px; margin:15px 0 0; }
 @media(max-width:850px) { .ra-new-case-layout { grid-template-columns:1fr; } .ra-new-case-aside { position:static; } }
+
+/* Status should read as data, never as decoration. */
+.ra-tag { font-variant-numeric:tabular-nums; white-space:nowrap; }
+.ra-tag.danger { background:#f7e8e2; border-color:#e5c7bc; color:#8e4434; }
+.ra-tag.warning { background:#f4eee1; border-color:#e6d6b5; color:#7e5c2c; }
+.ra-tag.info { background:#e8efea; border-color:#cfddd2; color:#355a46; }
+.ra-case-message { max-width:34ch; color:#56675a; line-height:1.45; }
+.ra-page .ra-card { border-top:1px solid #d6ddd1; }
+.ra-page .ra-card-head { display:flex; justify-content:space-between; align-items:center; gap:16px; }
+.ra-page .ra-card-head h2 { margin:0; font-size:21px; font-weight:400; color:#263d30; }
+.ra-page .ra-card-head p { margin:4px 0 0; font-size:13px; color:#718071; }
+.ra-page .ra-toolbar .ra-input { flex:1 1 260px; }
+.ra-page .ra-toolbar .ra-select { flex:0 0 170px; }
+.ra-page .ra-toolbar .ra-muted { font-size:12px !important; }
+.ra-page .ra-actions .ra-button { white-space:nowrap; }
+@media(max-width:680px) {
+ .ra-page .ra-toolbar .ra-select { flex:1 1 100%; max-width:none !important; }
+ .ra-page .ra-card-head { align-items:flex-start; }
+ .ra-page-heading .ra-actions { width:100%; }
+ .ra-page-heading .ra-actions .ra-button { flex:1; text-align:center; justify-content:center; }
+}
