@@ -1,5 +1,5 @@
 import { clerkMiddleware } from '@clerk/nextjs/server'
-import type { NextRequest } from 'next/server'
+import type { NextFetchEvent, NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
 // Configure CLERK_SECRET_KEY in deployment to enable server-side route protection.
@@ -11,9 +11,9 @@ const clerkHandler = clerkMiddleware(async (auth, request) => {
   if (!isPublicRoute) await auth.protect()
 })
 
-export default function proxy(request: NextRequest) {
+export default function proxy(request: NextRequest, event: NextFetchEvent) {
   if (!process.env.CLERK_SECRET_KEY) return NextResponse.next()
-  return clerkHandler(request)
+  return clerkHandler(request, event)
 }
 
 export const config = {
