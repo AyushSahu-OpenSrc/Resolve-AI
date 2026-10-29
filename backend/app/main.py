@@ -117,26 +117,40 @@ def get_customer_api(customer_id: str, session: Session = Depends(get_session)):
 
 @app.post("/api/import/customers")
 async def import_customers(file: UploadFile = File(...), session: Session = Depends(get_session)):
-    if not file.filename.endswith(".csv"):
+    if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(400, "Only CSV files are supported")
-    
-    contents = await file.read()
-    decoded = contents.decode("utf-8")
+    try:
+        decoded = (await file.read()).decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(400, "CSV must be UTF-8 encoded")
     reader = csv.DictReader(io.StringIO(decoded))
-    
+    headers = {h.strip().lower() for h in (reader.fieldnames or []) if h}
+    if not {"id", "name", "email"}.issubset(headers):
+        raise HTTPException(400, "Customers CSV requires columns: id, name, email")
     count = 0
-    for row in reader:
-        c = session.get(Customer, row.get("id"))
-        if not c:
-            c = Customer(id=row.get("id"), name=row.get("name"), email=row.get("email"), tier=row.get("tier", "standard"), phone=row.get("phone"))
-        else:
-            c.name = row.get("name", c.name)
-            c.email = row.get("email", c.email)
-            c.tier = row.get("tier", c.tier)
-            c.phone = row.get("phone", c.phone)
-        session.add(c)
-        count += 1
-    session.commit()
+    try:
+        for raw in reader:
+            row = {(k or "").strip().lower(): (v or "").strip() for k, v in raw.items()}
+            customer_id, name, email = row.get("id"), row.get("name"), row.get("email")
+            if not customer_id or not name or not email:
+                raise HTTPException(400, f"Customer row {count + 2} needs id, name and email")
+            c = session.get(Customer, customer_id)
+            if c is None:
+                c = Customer(id=customer_id, name=name, email=email,
+                             tier=row.get("tier") or "standard", phone=row.get("phone") or None)
+            else:
+                c.name, c.email = name, email
+                c.tier = row.get("tier") or c.tier
+                c.phone = row.get("phone") or c.phone
+            session.add(c)
+            count += 1
+        session.commit()
+    except HTTPException:
+        session.rollback()
+        raise
+    except Exception as exc:
+        session.rollback()
+        raise HTTPException(400, f"Customer import failed; no rows were committed: {exc}")
     return {"status": "success", "imported": count}
 
 
@@ -173,36 +187,65 @@ def get_order_api(order_id: str, session: Session = Depends(get_session)):
 
 @app.post("/api/import/orders")
 async def import_orders(file: UploadFile = File(...), session: Session = Depends(get_session)):
-    if not file.filename.endswith(".csv"):
+    if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(400, "Only CSV files are supported")
-    
-    contents = await file.read()
-    decoded = contents.decode("utf-8")
+    try:
+        decoded = (await file.read()).decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(400, "CSV must be UTF-8 encoded")
     reader = csv.DictReader(io.StringIO(decoded))
-    
+    headers = {h.strip().lower() for h in (reader.fieldnames or []) if h}
+    if not {"id", "customer_id", "product_id", "status", "total_amount"}.issubset(headers):
+        raise HTTPException(400, "Orders CSV requires columns: id, customer_id, product_id, status, total_amount")
+    from datetime import datetime
+    def parse_dt(value):
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            raise HTTPException(400, f"Invalid date: {value}. Use ISO format YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS")
     count = 0
-    for row in reader:
-        o = session.get(Order, row.get("id"))
-        from datetime import datetime
-        def parse_dt(dt_str):
-            if not dt_str: return None
-            try: return datetime.fromisoformat(dt_str)
-            except: return None
-
-        if not o:
-            o = Order(
-                id=row.get("id"), customer_id=row.get("customer_id"), product_id=row.get("product_id"),
-                status=row.get("status", "pending"), purchase_date=parse_dt(row.get("purchase_date")) or _now(),
-                delivery_date=parse_dt(row.get("delivery_date")), issue_type=row.get("issue_type") or None,
-                total_amount=float(row.get("total_amount", 0.0)), quantity=int(row.get("quantity", 1))
-            )
-        else:
-            o.status = row.get("status", o.status)
-            o.issue_type = row.get("issue_type") or o.issue_type
-            if row.get("total_amount"): o.total_amount = float(row.get("total_amount"))
-        session.add(o)
-        count += 1
-    session.commit()
+    try:
+        for raw in reader:
+            row = {(k or "").strip().lower(): (v or "").strip() for k, v in raw.items()}
+            order_id, customer_id, product_id = row.get("id"), row.get("customer_id"), row.get("product_id")
+            if not order_id or not customer_id or not product_id:
+                raise HTTPException(400, f"Order row {count + 2} needs id, customer_id and product_id")
+            if session.get(Customer, customer_id) is None:
+                raise HTTPException(400, f"Order row {count + 2} references unknown customer_id {customer_id}")
+            if session.get(Product, product_id) is None:
+                raise HTTPException(400, f"Order row {count + 2} references unknown product_id {product_id}")
+            try:
+                total = float(row.get("total_amount") or "0")
+                quantity = int(row.get("quantity") or "1")
+            except ValueError:
+                raise HTTPException(400, f"Invalid amount or quantity in order row {count + 2}")
+            if total < 0 or quantity < 1:
+                raise HTTPException(400, f"Amount must be non-negative and quantity at least 1 (row {count + 2})")
+            purchase_date = parse_dt(row.get("purchase_date")) or _now()
+            delivery_date = parse_dt(row.get("delivery_date"))
+            o = session.get(Order, order_id)
+            if o is None:
+                o = Order(id=order_id, customer_id=customer_id, product_id=product_id,
+                          status=row.get("status") or "pending", purchase_date=purchase_date,
+                          delivery_date=delivery_date, issue_type=row.get("issue_type") or None,
+                          total_amount=total, quantity=quantity)
+            else:
+                o.customer_id, o.product_id = customer_id, product_id
+                o.status = row.get("status") or o.status
+                o.purchase_date, o.delivery_date = purchase_date, delivery_date
+                o.issue_type = row.get("issue_type") or o.issue_type
+                o.total_amount, o.quantity = total, quantity
+            session.add(o)
+            count += 1
+        session.commit()
+    except HTTPException:
+        session.rollback()
+        raise
+    except Exception as exc:
+        session.rollback()
+        raise HTTPException(400, f"Order import failed; no rows were committed: {exc}")
     return {"status": "success", "imported": count}
 
 
