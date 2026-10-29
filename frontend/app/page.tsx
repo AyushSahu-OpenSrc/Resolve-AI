@@ -17,8 +17,9 @@ function ProductPreview() {
   </div>
 }
 export default function LandingPage() {
- const {isLoaded,isSignedIn}=useUser()
- const launchHref=isLoaded&&isSignedIn?'/dashboard':'/sign-in'
+ const {isLoaded,isSignedIn,user}=useUser()
+ const setupComplete=(user?.unsafeMetadata as Record<string,unknown>|undefined)?.resolveaiSetupComplete===true
+ const launchHref=isLoaded&&isSignedIn?(setupComplete?'/dashboard':'/onboarding'):'/sign-in'
  return <main className="landing">
    <header className="landing-nav"><Link href="/" className="landing-logo"><span>R</span> ResolveAI</Link><nav><a href="#platform">Platform</a><a href="#workflow">How it works</a><a href="#principles">Principles</a></nav><div className="landing-actions"><Link href="/sign-in" className="landing-login">Sign in</Link><Link href={launchHref} className="landing-nav-cta">{isLoaded&&isSignedIn?'Open workspace':'Get started'} <span>↗</span></Link></div></header>
    <section className="landing-hero"><div className="landing-copy"><div className="landing-kicker"><i/> AUTONOMOUS CUSTOMER OPERATIONS</div><h1>Resolve the issue.<br/><em>Earn the trust.</em></h1><p className="landing-lede">A resolution agent that investigates customer problems, applies your business policies, takes the right action and verifies the result.</p><div className="landing-ctas"><Link href={launchHref} className="landing-primary">{isLoaded&&isSignedIn?'Open your workspace':'Explore ResolveAI'} <span>↗</span></Link><a href="#workflow" className="landing-secondary">See how it works <span>↓</span></a></div><div className="landing-proof"><span><b>01</b> Ground decisions in evidence</span><span><b>02</b> Act within business policy</span><span><b>03</b> Verify before closing</span></div></div><div className="landing-visual"><div className="visual-orbit orbit-a"/><div className="visual-orbit orbit-b"/><div className="visual-core"><span>R</span><small>RESOLVEAI AGENT</small></div><div className="orbit-label ol-one"><b>01</b> Investigate</div><div className="orbit-label ol-two"><b>02</b> Decide</div><div className="orbit-label ol-three"><b>03</b> Execute</div><div className="orbit-label ol-four"><b>04</b> Verify</div><div className="visual-note"><i/> One goal. Adaptive execution.</div></div></section>
