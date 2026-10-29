@@ -560,3 +560,26 @@ button, a { -webkit-tap-highlight-color: transparent; }
  .ra-page-heading .ra-actions { width:100%; }
  .ra-page-heading .ra-actions .ra-button { flex:1; text-align:center; justify-content:center; }
 }
+
+/* Small screens keep navigation discoverable instead of hiding every label. */
+@media(max-width:850px) {
+  .ra-sidebar { width:68px; padding:17px 8px; }
+  .ra-main { margin-left:68px; }
+  .ra-brand { margin:0 auto 25px; }
+  .ra-brand > .ra-brand-name { display:none; }
+  .ra-nav-item { display:flex; flex-direction:column; justify-content:center; align-items:center; gap:4px; min-height:51px; padding:7px 2px; }
+  .ra-nav-item > span:last-child { display:block; font-size:9px; line-height:1.1; max-width:58px; white-space:normal; text-align:center; overflow-wrap:anywhere; }
+  .ra-nav-icon svg { width:18px; height:18px; }
+  .ra-sidebar-bottom .ra-agent-status { display:none; }
+  .ra-sidebar-bottom .ra-upgrade { display:none; }
+  .ra-sidebar-foot { display:none; }
+}
+@media(max-width:560px) {
+  .ra-sidebar { width:56px; padding:14px 5px; }
+  .ra-main { margin-left:56px; }
+  .ra-nav-item { min-height:49px; }
+  .ra-nav-item > span:last-child { font-size:8px; max-width:48px; }
+  .ra-topbar { gap:8px; }
+  .ra-search { max-width:none; flex:1 1 auto; }
+  .ra-search input { min-width:0; width:100%; }
+}
