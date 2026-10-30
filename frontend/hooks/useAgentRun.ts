@@ -50,8 +50,7 @@ export function useAgentRun(caseId: string | null) {
           const fresh = newEvents.filter(e => !existingIds.has(e.id))
           return [...prev, ...fresh].sort((a, b) => a.sequence_number - b.sequence_number)
         })
-        // Update the timestamp to the latest event
-        const latest = newEvents[newEvents.length - 1]
+          const latest = newEvents[newEvents.length - 1]
         lastTimestampRef.current = latest.timestamp
       }
     } catch (e) {

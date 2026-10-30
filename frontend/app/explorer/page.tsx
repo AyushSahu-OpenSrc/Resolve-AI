@@ -6,6 +6,12 @@ import { api } from '@/lib/api'
 
 type Tab = 'customers' | 'orders' | 'inventory' | 'policies'
 
+type CustomerItem = { id: string; name: string; email: string; phone?: string; tier?: string }
+type OrderItem = { id: string; customer_id: string; product_id: string; status: string; total_amount: number; delivery_date?: string; issue_type?: string }
+type InventoryItem = { id: string; product_id: string; warehouse: string; quantity: number; reserved_quantity: number; available: number; updated_at?: string }
+type PolicyItem = { id: string; category: string; active?: boolean; policy_text: string; eligibility_rules?: Record<string, unknown> }
+type ExplorerItem = CustomerItem & OrderItem & InventoryItem & PolicyItem
+
 const TAB_LABELS: Record<Tab, string> = {
   customers: 'Customers',
   orders: 'Orders',
@@ -15,13 +21,13 @@ const TAB_LABELS: Record<Tab, string> = {
 
 export default function ExplorerPage() {
   const [tab, setTab] = useState<Tab>('customers')
-  const [data, setData] = useState<any[]>([])
+  const [data, setData] = useState<ExplorerItem[]>([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   
   // Policy Modal State
   const [showPolicyModal, setShowPolicyModal] = useState(false)
-  const [editingPolicy, setEditingPolicy] = useState<any | null>(null)
+  const [editingPolicy, setEditingPolicy] = useState<PolicyItem | null>(null)
   
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -59,8 +65,9 @@ export default function ExplorerPage() {
       await api.uploadCsv(tab, file)
       alert('Upload successful!')
       fetchData() // Refresh data
-    } catch (err: any) {
-      alert('Upload failed: ' + err.message)
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      alert('Upload failed: ' + errMsg)
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -85,8 +92,9 @@ export default function ExplorerPage() {
       }
       setShowPolicyModal(false)
       fetchData()
-    } catch (err: any) {
-      alert('Failed to save policy: ' + err.message)
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      alert('Failed to save policy: ' + errMsg)
     }
   }
 
@@ -95,8 +103,9 @@ export default function ExplorerPage() {
     try {
       await api.deletePolicy(id)
       fetchData()
-    } catch (err: any) {
-      alert('Failed to delete policy: ' + err.message)
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      alert('Failed to delete policy: ' + errMsg)
     }
   }
 
@@ -180,7 +189,7 @@ export default function ExplorerPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.map((c: any) => (
+                {data.map((c: CustomerItem) => (
                   <tr key={c.id}>
                     <td className="mono" style={{ color: 'var(--ink-muted)', fontSize: '0.75rem' }}>{c.id}</td>
                     <td style={{ fontWeight: 500 }}>{c.name}</td>
@@ -213,7 +222,7 @@ export default function ExplorerPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.map((o: any) => (
+                {data.map((o: OrderItem) => (
                   <tr key={o.id}>
                     <td className="mono" style={{ color: 'var(--ink-muted)', fontSize: '0.75rem' }}>{o.id}</td>
                     <td className="mono" style={{ fontSize: '0.75rem' }}>{o.customer_id}</td>
@@ -254,7 +263,7 @@ export default function ExplorerPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.map((inv: any) => (
+                {data.map((inv: InventoryItem) => (
                   <tr key={inv.id}>
                     <td className="mono" style={{ color: 'var(--ink-muted)', fontSize: '0.6875rem' }}>{inv.id}</td>
                     <td className="mono" style={{ fontSize: '0.75rem' }}>{inv.product_id}</td>
@@ -284,7 +293,7 @@ export default function ExplorerPage() {
 
         {!loading && tab === 'policies' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {data.map((p: any) => (
+            {data.map((p: PolicyItem) => (
               <div key={p.id} className="panel">
                 <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <div>
@@ -318,7 +327,7 @@ export default function ExplorerPage() {
                   <p style={{ fontSize: '0.875rem', color: 'var(--ink-muted)', marginBottom: '1rem', lineHeight: 1.65 }}>
                     {p.policy_text}
                   </p>
-                  <div style={{ fontSize: '0.625rem', fontWeight: 500, color: 'var(--ink-muted)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  <div style={{ fontSize: '0.625rem', fontWeight: 500, color: 'var(--ink-muted)', marginBottom: '0.5rem' }}>
                     Eligibility Rules (evaluated programmatically)
                   </div>
                   <pre style={{

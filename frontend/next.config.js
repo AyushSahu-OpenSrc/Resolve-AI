@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Remove 'standalone' for Render node service (uses npm start directly)
+  devIndicators: false,
   async rewrites() {
     return [
       {

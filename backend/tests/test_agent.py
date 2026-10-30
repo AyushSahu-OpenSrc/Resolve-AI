@@ -185,7 +185,6 @@ def test_inventory_conflict_replan_alternate_warehouse():
         result = reserve_inventory(session, case_id, exec_id, "PROD-HP01", "Pune", seq=4)
         assert result["success"] is True
 
-        # Create replacement from Pune
         result = create_replacement(session, case_id, exec_id, "Pune", seq=5)
         assert result["success"] is True
         assert result["warehouse"] == "Pune"

@@ -24,27 +24,10 @@ type StatProps = {
 
 function Stat({ label, value, sub, accent }: StatProps) {
   return (
-    <div style={{
-      padding: '1.25rem',
-      background: 'var(--surface-raised)',
-      border: '1px solid var(--line)',
-      borderLeft: accent ? '3px solid var(--signal)' : undefined,
-    }}>
-      <div style={{
-        fontSize: '0.625rem', fontWeight: 500, color: 'var(--ink-muted)',
-        marginBottom: '0.625rem', textTransform: 'uppercase', letterSpacing: '0.06em',
-      }}>
-        {label}
-      </div>
-      <div style={{
-        fontSize: '1.625rem', fontWeight: 600, color: 'var(--ink)',
-        fontFamily: 'IBM Plex Mono, monospace', lineHeight: 1, marginBottom: sub ? '0.375rem' : 0,
-      }}>
-        {value}
-      </div>
-      {sub && (
-        <div style={{ fontSize: '0.75rem', color: 'var(--ink-muted)', marginTop: '0.25rem' }}>{sub}</div>
-      )}
+    <div className="ra-card ra-stat">
+      <div className="ra-stat-label">{label}</div>
+      <div className="ra-stat-value" style={accent ? { color: 'var(--success)' } : undefined}>{value}</div>
+      {sub && <div className="ra-stat-note" style={{ color: 'var(--ink-muted)' }}>{sub}</div>}
     </div>
   )
 }
@@ -76,11 +59,9 @@ export default function AnalyticsPage() {
             {/* Stat grid */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-              gap: '1px',
-              marginBottom: '2rem',
-              background: 'var(--line)',
-              border: '1px solid var(--line)',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+              gap: '12px',
+              marginBottom: '1.25rem',
             }}>
               <Stat label="Total Cases" value={data.total_cases} />
               <Stat

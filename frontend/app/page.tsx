@@ -1,32 +1,790 @@
 'use client'
 
+/**
+ * ResolveAI — Autonomous Customer Resolution Agent
+ * Landing & Operations Showcase
+ *
+ * Implements the PQC-LAB aesthetic:
+ * - 3 interactive generated banner scenes (Investigation, Policy Engine, Settlements)
+ * - Glassmorphism view-controller capsule switcher
+ * - Interactive hotspot CTAs mapped to real routes (/cases/new, /cases, /policies, /inventory)
+ * - Authentic database-backed state with zero mock figures
+ */
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import {
+  IconCheck as Check,
+  IconChevronLeft as ChevronLeft,
+  IconChevronRight as ChevronRight,
+  IconDashboard as LayoutDashboard,
+  IconMenu as Menu,
+  IconClose as X,
+  IconMic as Mic,
+  IconDatabase as Database,
+  IconShield as Shield,
+  IconTruck as Truck,
+  IconFileText as FileText,
+} from '@/components/icons'
 import { useUser } from '@clerk/nextjs'
+import './qfit-home.css'
 
-function ProductPreview() {
-  return <div className="hero-preview">
-    <div className="preview-top"><span className="preview-brand"><b>R</b> ResolveAI</span><span className="preview-live"><i/> Illustrative product preview</span><span className="preview-avatar">AS</span></div>
-    <div className="preview-body">
-      <aside className="preview-nav"><b className="preview-nav-mark">R</b>{['Overview','Customers','Orders','Inventory','Policies','Conflicts'].map((x,i)=><span key={x} className={i===5?'selected':''}><i>{['◫','♙','▤','◇','≋','◎'][i]}</i>{x}</span>)}</aside>
-      <div className="preview-main"><div className="preview-heading"><div><small>RESOLUTION OPERATIONS / CASES</small><h3>Resolve the issue. Not just the ticket.</h3></div><span className="preview-open">● In progress</span></div>
-        <div className="preview-metrics"><div><small>Case</small><strong>CASE-1042</strong><em>Damaged on arrival</em></div><div><small>Policy check</small><strong>Eligible</strong><em>Replacement permitted</em></div><div><small>Inventory</small><strong>2 locations</strong><em>Stock verified</em></div></div>
-        <div className="preview-work"><div className="preview-work-title">AGENT EXECUTION <span>EXAMPLE TRACE</span></div>{[['✓','Investigated the order','Order and customer evidence retrieved'],['✓','Checked replacement policy','Within 7-day damage window'],['↻','Replanned fulfilment','Mumbai unavailable · Pune selected'],['○','Verify final outcome','Illustrative pending step']].map((r,i)=><div className={'preview-event e'+i} key={r[1]}><b>{r[0]}</b><div><strong>{r[1]}</strong><small>{r[2]}</small></div><span>{i===3?'Pending':'Complete'}</span></div>)}</div>
-      </div>
-    </div>
-    <div className="preview-foot"><span>Evidence-led decisions</span><span>Policy-aware actions</span><span>Verifiable outcomes</span></div>
-  </div>
+/* ─────────────────────────────────────────────────────────────────────────────
+   ROUTES & NAVIGATION
+   ───────────────────────────────────────────────────────────────────────────── */
+const ROUTES = {
+  cases: '/cases',
+  newCase: '/cases/new',
+  policies: '/policies',
+  inventory: '/inventory',
+  runs: '/agent-runs',
+  explorer: '/explorer',
+  imports: '/imports',
+  signin: '/sign-in',
+  signup: '/sign-up',
+} as const
+
+const NAV_LINKS = [
+  { label: 'Conflicts', href: ROUTES.cases },
+  { label: 'New Conflict (Mic)', href: ROUTES.newCase },
+  { label: 'Policies', href: ROUTES.policies },
+  { label: 'Inventory', href: ROUTES.inventory },
+  { label: 'Agent Runs', href: ROUTES.runs },
+  { label: 'Import CSV', href: ROUTES.imports },
+] as const
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   HERO SCENES — 3 banners generated specifically for ResolveAI
+   hotspot boxes are [x0, y0, x1, y1] in banner pixel space (2103 × 748)
+   ───────────────────────────────────────────────────────────────────────────── */
+const BANNER_W = 2103
+const BANNER_H = 748
+
+type Box = [number, number, number, number]
+type Cta = { label: string; to: string; kind: 'primary' | 'ghost' }
+type Scene = {
+  id: string
+  label: string
+  tone: 'dark' | 'light'
+  base: string
+  fill: string
+  mobilePos: string
+  alt: string
+  title: string
+  body: string
+  ctas: Cta[]
+  hotspots: { label: string; to: string; box: Box }[]
 }
+
+const SCENES: Scene[] = [
+  {
+    id: 'investigation',
+    label: 'Investigation',
+    tone: 'dark',
+    base: '/assets/banners/hero-overview',
+    fill: '#051124',
+    mobilePos: '93% 50%',
+    alt: 'Autonomous Case Investigation and Voice Dictation Ingestion. Real-time carrier tracking and order manifest verification.',
+    title: 'Resolve Customer Conflicts. Pure Evidence. Zero Hallucination.',
+    body: 'ResolveAI is an autonomous customer resolution agent that ingests disputes via Speech Recognition Mic, chat, or CSV uploads. It inspects order manifests, cross-references warranty policies, and coordinates multi-warehouse inventory without fabricated data.',
+    ctas: [
+      { label: 'Launch Dashboard ↗', to: ROUTES.cases, kind: 'primary' },
+      { label: 'Record Conflict via Voice', to: ROUTES.newCase, kind: 'ghost' },
+    ],
+    hotspots: [
+      { label: 'Launch Resolution Dashboard', to: ROUTES.cases, box: [90, 440, 410, 506] },
+      { label: 'Record Conflict via Voice', to: ROUTES.newCase, box: [430, 440, 730, 506] },
+      { label: 'Inspect Case 1042', to: ROUTES.cases, box: [1080, 90, 2010, 650] },
+    ],
+  },
+  {
+    id: 'policies',
+    label: 'Policy Engine',
+    tone: 'dark',
+    base: '/assets/banners/hero-devices',
+    fill: '#0c2749',
+    mobilePos: '86% 50%',
+    alt: 'Deterministic Policy Engine and Multi-Hub Regional Inventory Allocation.',
+    title: 'Deterministic Policy Engine. Zero-Hallucination Inventory.',
+    body: 'No blind promises or fake refunds. ResolveAI evaluates strict warranty eligibility, damage evidence, and live multi-warehouse stocks (Mumbai, Pune, Bangalore) before committing any replacement or settlement.',
+    ctas: [
+      { label: 'Inspect Policy Rules ↗', to: ROUTES.policies, kind: 'primary' },
+      { label: 'Inspect Warehouses', to: ROUTES.inventory, kind: 'ghost' },
+    ],
+    hotspots: [
+      { label: 'Inspect Policy Rules', to: ROUTES.policies, box: [90, 440, 400, 506] },
+      { label: 'Inspect Warehouses', to: ROUTES.inventory, box: [420, 440, 720, 506] },
+      { label: 'Pune Hub Optimal Match', to: ROUTES.inventory, box: [1410, 360, 1680, 620] },
+    ],
+  },
+  {
+    id: 'settlements',
+    label: 'Settlements',
+    tone: 'dark',
+    base: '/assets/banners/hero-workflow',
+    fill: '#06122b',
+    mobilePos: '96% 50%',
+    alt: 'End-to-End Closed Loop Settlements and Cryptographic Audit Ledger.',
+    title: 'End-to-End Resolution. Zero Manual Overhead.',
+    body: 'From customer dispute to confirmed warehouse stock allocation and customer email dispatch, every single agent tool invocation is logged into an immutable database audit trail.',
+    ctas: [
+      { label: 'Inspect Agent Runs ↗', to: ROUTES.runs, kind: 'primary' },
+      { label: 'Audit Case Explorer', to: ROUTES.explorer, kind: 'ghost' },
+    ],
+    hotspots: [
+      { label: 'Inspect Agent Runs', to: ROUTES.runs, box: [90, 440, 400, 506] },
+      { label: 'Audit Case Explorer', to: ROUTES.explorer, box: [420, 440, 720, 506] },
+      { label: 'Execution Pipeline', to: ROUTES.runs, box: [1080, 90, 2010, 650] },
+    ],
+  },
+]
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   OPERATIONAL PILLARS
+   ───────────────────────────────────────────────────────────────────────────── */
+const STANDARDS = [
+  { name: 'Pure Evidence', note: 'Ground in order manifests' },
+  { name: 'Deterministic Policy', note: 'Zero hallucinated promises' },
+  { name: 'Multi-Hub Inventory', note: 'Mumbai & Pune live allocation' },
+  { name: 'Two-Tier Failover', note: 'Gemini 2.0 + Groq GPT-OSS 120B' },
+  { name: 'Closed-Loop Audit', note: 'Immutable DB execution trace' },
+]
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   5-STAGE PIPELINE STEPPER
+   ───────────────────────────────────────────────────────────────────────────── */
+const PIPELINE = [
+  {
+    icon: Mic,
+    label: 'Voice Ingestion',
+    desc: 'Customer dispute captured via browser SpeechRecognition mic, chat, or CSV batch upload.',
+    out: 'A structured SupportCase record with customer message and order link.',
+  },
+  {
+    icon: Database,
+    label: 'Evidence Intake',
+    desc: 'Agent gathers order history, delivery confirmation, customer tier, and tracking evidence.',
+    out: 'Verified order and shipment status: Delivered 2 days ago via carrier.',
+  },
+  {
+    icon: Shield,
+    label: 'Policy Governance',
+    desc: 'Enforces business rules: 7-day reporting limit, damage verification, SKU eligibility.',
+    out: 'A deterministic verdict: Replacement approved under POL-WARRANTY-01.',
+  },
+  {
+    icon: Truck,
+    label: 'Multi-Hub Routing',
+    desc: 'Checks regional stock: Mumbai Hub is out of stock (0), redirects to Pune Hub (2 units).',
+    out: '1 unit reserved at Pune Hub. Database row locked to prevent race conditions.',
+  },
+  {
+    icon: FileText,
+    label: 'Closed-Loop Execution',
+    desc: 'Generates replacement order REP-1042-PUNE, decrements Pune stock, and drafts customer email.',
+    out: 'Immutable audit log stored in agent_events table. Resolution verified.',
+  },
+]
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SMART LINK HELPER
+   ───────────────────────────────────────────────────────────────────────────── */
+function SmartLink({
+  to,
+  children,
+  className,
+  'aria-label': ariaLabel,
+  style,
+  onClick,
+}: {
+  to: string
+  children?: React.ReactNode
+  className?: string
+  'aria-label'?: string
+  style?: CSSProperties
+  onClick?: () => void
+}) {
+  if (to.startsWith('#')) {
+    return (
+      <a href={to} className={className} aria-label={ariaLabel} style={style} onClick={onClick}>
+        {children}
+      </a>
+    )
+  }
+  return (
+    <Link href={to} className={className} aria-label={ariaLabel} style={style} onClick={onClick}>
+      {children}
+    </Link>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BRAND COMPONENT
+   ───────────────────────────────────────────────────────────────────────────── */
+function Brand() {
+  return (
+    <Link href="/" className="qf-brand" aria-label="ResolveAI — Home">
+      <div style={{
+        width: 38,
+        height: 38,
+        borderRadius: 12,
+        overflow: 'hidden',
+        background: 'rgba(255, 255, 255, 0.08)',
+        border: '1px solid rgba(255, 255, 255, 0.16)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+      }}>
+        <Image src="/logo.png" alt="ResolveAI Mascot" width={36} height={36} style={{ objectFit: 'contain' }} priority />
+      </div>
+      <span className="qf-brand__word">
+        Resolve<span className="qf-brand__lab">AI</span>
+      </span>
+    </Link>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   FLOATING NAV
+   ───────────────────────────────────────────────────────────────────────────── */
+function Nav({ overLight }: { overLight: boolean }) {
+  const [scrolled, setScrolled] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [hover, setHover] = useState<string | null>(null)
+  const calm = useReducedMotion()
+  const { isLoaded, isSignedIn } = useUser()
+
+  useEffect(() => {
+    const on = () => setScrolled(window.scrollY > 24)
+    on()
+    window.addEventListener('scroll', on, { passive: true })
+    return () => window.removeEventListener('scroll', on)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+
+  return (
+    <header className="qf-nav" data-scrolled={scrolled} data-over-light={overLight}>
+      <motion.div
+        className="qf-nav__wrap"
+        initial={calm ? false : { y: -28, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
+      >
+        <div className="qf-nav__pill">
+          <Brand />
+
+          <nav className="qf-nav__links" aria-label="Primary" onPointerLeave={() => setHover(null)}>
+            {NAV_LINKS.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="qf-nav__link"
+                onPointerEnter={() => setHover(l.href)}
+                onFocus={() => setHover(l.href)}
+                onBlur={() => setHover(null)}
+              >
+                {hover === l.href && (
+                  <motion.span
+                    layoutId="qf-nav-hover"
+                    className="qf-nav__hover"
+                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                  />
+                )}
+                <span className="qf-nav__label">{l.label}</span>
+              </Link>
+            ))}
+          </nav>
+
+          <div className="qf-nav__auth">
+            {isLoaded && isSignedIn ? (
+              <Link href="/dashboard" className="qf-btn qf-btn--primary">
+                <LayoutDashboard size={15} /> Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link href={ROUTES.signin} className="qf-btn qf-btn--quiet qf-nav__login">
+                  Sign in
+                </Link>
+                <Link href={ROUTES.signup} className="qf-btn qf-btn--primary">
+                  Sign up
+                </Link>
+              </>
+            )}
+            <button
+              type="button"
+              className="qf-nav__burger"
+              aria-expanded={open}
+              aria-controls="qf-sheet"
+              aria-label={open ? 'Close menu' : 'Open menu'}
+              onClick={() => setOpen(!open)}
+            >
+              {open ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              id="qf-sheet"
+              className="qf-sheet"
+              initial={calm ? false : { opacity: 0, y: -10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.98 }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <nav aria-label="Mobile">
+                {NAV_LINKS.map((l) => (
+                  <Link
+                    key={l.href}
+                    href={l.href}
+                    className="qf-sheet__link"
+                    onClick={() => setOpen(false)}
+                  >
+                    {l.label}
+                    <ChevronRight size={18} />
+                  </Link>
+                ))}
+              </nav>
+              <div className="qf-sheet__auth">
+                <Link href={ROUTES.signin} className="qf-btn qf-btn--ghost qf-btn--lg" onClick={() => setOpen(false)}>
+                  Sign in
+                </Link>
+                <Link href={ROUTES.signup} className="qf-btn qf-btn--primary qf-btn--lg" onClick={() => setOpen(false)}>
+                  Get Started
+                </Link>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </header>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   HERO SECTION — with Glass View Controller
+   ───────────────────────────────────────────────────────────────────────────── */
+function Hero({
+  active,
+  leaving,
+  onSelect,
+}: {
+  active: number
+  leaving: number | null
+  onSelect: (i: number) => void
+}) {
+  const scene = SCENES[active]
+  const ctrlRef = useRef<HTMLDivElement>(null)
+  const [hover, setHover] = useState<number | null>(null)
+  const [focus, setFocus] = useState<number | null>(null)
+
+  const cols = SCENES.length + 1
+  const idx = hover ?? focus ?? active + 1
+  const edge = idx === 0 || idx === cols - 1 ? ' + 5px' : ''
+  const capStyle = {
+    '--cap-left': idx === 0 ? '-5px' : `${(idx * 100) / cols}%`,
+    '--cap-width': `calc(${100 / cols}%${edge})`,
+  } as CSSProperties
+
+  const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const el = ctrlRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    el.style.setProperty('--glass-x', `${(((e.clientX - r.left) / r.width) * 100).toFixed(1)}%`)
+    el.style.setProperty('--glass-y', `${(((e.clientY - r.top) / r.height) * 100).toFixed(1)}%`)
+  }
+
+  const stateOf = (i: number) => (i === active ? 'active' : i === leaving ? 'leaving' : 'idle')
+
+  return (
+    <section
+      className="qf-hero"
+      data-tone={scene.tone}
+      aria-label="ResolveAI"
+      style={{ '--qf-fill': scene.fill } as CSSProperties}
+    >
+      {/* Top Edge Extension Strip */}
+      <div className="qf-hero__top" aria-hidden="true">
+        {SCENES.map((s, i) => (
+          <div
+            key={s.id}
+            className="qf-edge"
+            data-state={stateOf(i)}
+            style={{ backgroundImage: `url(${s.base}-edge-top.png)` }}
+          />
+        ))}
+      </div>
+
+      {/* Main Banner Scene */}
+      <div className="qf-banner">
+        {SCENES.map((s, i) => (
+          <div
+            key={s.id}
+            className="qf-scene"
+            data-state={stateOf(i)}
+            style={{ '--pos': s.mobilePos } as CSSProperties}
+          >
+            {/* Banner Artwork */}
+            <picture>
+              <source srcSet={`${s.base}.webp`} type="image/webp" />
+              <img
+                src={`${s.base}.webp`}
+                alt={s.alt}
+                width={BANNER_W}
+                height={BANNER_H}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                draggable={false}
+              />
+            </picture>
+
+            {/* Clickable Hotspots overlaying buttons drawn on the banner */}
+            {s.hotspots.map((h) => (
+              <SmartLink
+                key={h.label}
+                to={h.to}
+                className="qf-hot"
+                aria-label={h.label}
+                style={{
+                  left: `${(h.box[0] / BANNER_W) * 100}%`,
+                  top: `${(h.box[1] / BANNER_H) * 100}%`,
+                  width: `${((h.box[2] - h.box[0]) / BANNER_W) * 100}%`,
+                  height: `${((h.box[3] - h.box[1]) / BANNER_H) * 100}%`,
+                }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Bottom Edge Extension Strip + Controller */}
+      <div className="qf-hero__bottom">
+        {SCENES.map((s, i) => (
+          <div
+            key={s.id}
+            className="qf-edge"
+            aria-hidden="true"
+            data-state={stateOf(i)}
+            style={{ backgroundImage: `url(${s.base}-edge-bottom.png)` }}
+          />
+        ))}
+
+        <div className="qf-hero__inner">
+          {/* Glass View Controller */}
+          <div
+            ref={ctrlRef}
+            className="qf-controller"
+            onPointerMove={onMove}
+            onPointerLeave={() => setHover(null)}
+          >
+            <div className="qf-glass qf-track" />
+            <div className="qf-glass qf-capsule" style={capStyle} />
+            <div className="qf-cells">
+              <span className="qf-cell qf-cell--label" data-dim={hover !== null || focus !== null}>
+                Switch view
+              </span>
+              {SCENES.map((s, i) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className="qf-cell qf-cell--btn"
+                  aria-pressed={i === active}
+                  onPointerEnter={() => setHover(i + 1)}
+                  onFocus={() => setFocus(i + 1)}
+                  onBlur={() => setFocus(null)}
+                  onClick={() => onSelect(i)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <p className="qf-hero__note">
+            Authentic database state · Ingest disputes via Speech Recognition Mic, Chat or CSV · Multi-warehouse stock allocation
+          </p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   INTERACTIVE 5-STEP PIPELINE
+   ───────────────────────────────────────────────────────────────────────────── */
+function PipelineSection() {
+  const [step, setStep] = useState(0)
+  const current = PIPELINE[step]
+  const Icon = current.icon
+
+  return (
+    <section className="qf-block qf-block--white" id="pipeline">
+      <div className="qf-wrap">
+        <div className="qf-head">
+          <p style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#2f5bff', margin: '0 0 10px' }}>
+            Autonomous Architecture
+          </p>
+          <h2 className="qf-h2">From customer complaint to confirmed settlement.</h2>
+          <p className="qf-lede">
+            ResolveAI eliminates human delays and manual ticket ping-pong. Every stage runs deterministically against your live SQLite database.
+          </p>
+        </div>
+
+        <div className="qf-steps">
+          <div className="qf-steps__list" style={{ '--p': step / (PIPELINE.length - 1) } as CSSProperties}>
+            {PIPELINE.map((item, i) => (
+              <button
+                key={item.label}
+                type="button"
+                className="qf-steps__item"
+                data-done={i < step}
+                aria-current={i === step ? 'step' : undefined}
+                onClick={() => setStep(i)}
+              >
+                <span className="qf-steps__n">{i < step ? <Check size={14} /> : i + 1}</span>
+                <span className="qf-steps__label">{item.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="qf-steps__panel">
+            <div className="qf-steps__content">
+              <div className="qf-steps__icon">
+                <Icon size={32} color="#27c4f5" />
+              </div>
+              <span className="qf-steps__count">Stage {step + 1} of 5</span>
+              <h3 className="qf-steps__title">{current.label}</h3>
+              <p className="qf-steps__desc">{current.desc}</p>
+              <div className="qf-steps__out">
+                <span>Output verification</span>
+                <strong>{current.out}</strong>
+              </div>
+            </div>
+
+            <div className="qf-steps__nav">
+              <button
+                type="button"
+                className="qf-round"
+                disabled={step === 0}
+                aria-label="Previous step"
+                onClick={() => setStep((s) => Math.max(0, s - 1))}
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <button
+                type="button"
+                className="qf-round"
+                disabled={step === PIPELINE.length - 1}
+                aria-label="Next step"
+                onClick={() => setStep((s) => Math.min(PIPELINE.length - 1, s + 1))}
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   3-CARD FEATURE GALLERY (Using the 3 generated banners)
+   ───────────────────────────────────────────────────────────────────────────── */
+function FeatureGallery() {
+  return (
+    <section className="qf-block qf-block--night" id="features">
+      <div className="qf-wrap">
+        <div className="qf-head">
+          <p style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#818cf8', margin: '0 0 10px' }}>
+            System Pillars
+          </p>
+          <h2 className="qf-h2">Engineered for absolute accuracy.</h2>
+          <p className="qf-lede">
+            Explore the three subsystems that keep customer resolutions completely accurate, policy-compliant, and grounded in real inventory.
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px' }}>
+          {/* Card 1: Investigation & Voice Mic */}
+          <div style={{
+            background: 'rgb(255 255 255 / 0.04)',
+            border: '1px solid rgb(255 255 255 / 0.12)',
+            borderRadius: '24px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <div style={{ position: 'relative', width: '100%', height: '200px', background: '#051124' }}>
+              <img
+                src="/assets/banners/card-intake.webp"
+                alt="Autonomous Investigation Banner"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            </div>
+            <div style={{ padding: '24px', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <span className="qf-tag qf-tag--published">SPEECH RECOGNITION</span>
+              <h3 style={{ fontSize: '20px', fontWeight: 700, color: '#fff', margin: 0 }}>Voice Mic & CSV Intake</h3>
+              <p style={{ fontSize: '14px', color: 'rgb(255 255 255 / 0.7)', lineHeight: 1.6, margin: 0 }}>
+                Speak directly into the browser mic or upload dispute CSVs. Audio is transcribed in real-time and matched with tracking records.
+              </p>
+              <Link href={ROUTES.newCase} className="qf-link" style={{ marginTop: 'auto', paddingTop: '12px', color: '#38bdf8' }}>
+                Test voice intake ↗
+              </Link>
+            </div>
+          </div>
+
+          {/* Card 2: Multi-Hub Inventory */}
+          <div style={{
+            background: 'rgb(255 255 255 / 0.04)',
+            border: '1px solid rgb(255 255 255 / 0.12)',
+            borderRadius: '24px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <div style={{ position: 'relative', width: '100%', height: '200px', background: '#0c2749' }}>
+              <img
+                src="/assets/banners/card-routing.webp"
+                alt="Multi-Hub Inventory Banner"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            </div>
+            <div style={{ padding: '24px', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <span className="qf-tag qf-tag--host-test">REGIONAL LOGISTICS</span>
+              <h3 style={{ fontSize: '20px', fontWeight: 700, color: '#fff', margin: 0 }}>Multi-Hub Stock Allocation</h3>
+              <p style={{ fontSize: '14px', color: 'rgb(255 255 255 / 0.7)', lineHeight: 1.6, margin: 0 }}>
+                When Mumbai Hub is depleted (0 units), the agent automatically reroutes to Pune Hub (2 units) without stalling customer fulfillment.
+              </p>
+              <Link href={ROUTES.inventory} className="qf-link" style={{ marginTop: 'auto', paddingTop: '12px', color: '#818cf8' }}>
+                Inspect live inventory ↗
+              </Link>
+            </div>
+          </div>
+
+          {/* Card 3: Closed Loop Settlements */}
+          <div style={{
+            background: 'rgb(255 255 255 / 0.04)',
+            border: '1px solid rgb(255 255 255 / 0.12)',
+            borderRadius: '24px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <div style={{ position: 'relative', width: '100%', height: '200px', background: '#06122b' }}>
+              <img
+                src="/assets/banners/card-execution.webp"
+                alt="Closed Loop Settlements Banner"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            </div>
+            <div style={{ padding: '24px', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <span className="qf-tag qf-tag--derived">IMMUTABLE LOGS</span>
+              <h3 style={{ fontSize: '20px', fontWeight: 700, color: '#fff', margin: 0 }}>Closed-Loop Execution</h3>
+              <p style={{ fontSize: '14px', color: 'rgb(255 255 255 / 0.7)', lineHeight: 1.6, margin: 0 }}>
+                Automatic dispatch order generation, customer email drafts, and complete step-by-step reasoning logs stored for enterprise audits.
+              </p>
+              <Link href={ROUTES.runs} className="qf-link" style={{ marginTop: 'auto', paddingTop: '12px', color: '#34d399' }}>
+                View agent runs ↗
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   FINAL EXECUTIVE CALL TO ACTION
+   ───────────────────────────────────────────────────────────────────────────── */
+function FinalCta() {
+  return (
+    <section className="qf-final">
+      <div className="qf-wrap">
+        <div className="qf-final__panel">
+          <div style={{ maxWidth: '640px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#7dd3fc', display: 'block', marginBottom: '12px' }}>
+              Enterprise-Ready Deployment
+            </span>
+            <h2 style={{ fontSize: 'clamp(2rem, 3.8vw, 3.25rem)', fontWeight: 800, color: '#fff', lineHeight: 1.1, margin: '0 0 16px', letterSpacing: '-0.03em' }}>
+              Transform your customer support into an autonomous powerhouse.
+            </h2>
+            <p style={{ fontSize: '16px', color: 'rgb(255 255 255 / 0.8)', lineHeight: 1.6, margin: '0 0 32px' }}>
+              Connect your customer database, orders, and regional inventory. Deliver zero-hallucination settlements with full audit transparency.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px' }}>
+              <Link href={ROUTES.cases} className="qf-btn qf-btn--primary qf-btn--lg">
+                Launch Resolution Dashboard ↗
+              </Link>
+              <Link href={ROUTES.newCase} className="qf-btn qf-btn--glass qf-btn--lg">
+                Record Conflict via Mic
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MAIN PAGE ROOT
+   ───────────────────────────────────────────────────────────────────────────── */
 export default function LandingPage() {
- const {isLoaded,isSignedIn,user}=useUser()
- const setupComplete=(user?.unsafeMetadata as Record<string,unknown>|undefined)?.resolveaiSetupComplete===true
- const launchHref=isLoaded&&isSignedIn?(setupComplete?'/dashboard':'/onboarding'):'/sign-in'
- return <main className="landing">
-   <header className="landing-nav"><Link href="/" className="landing-logo"><span>R</span> ResolveAI</Link><nav><a href="#platform">Platform</a><a href="#workflow">How it works</a><a href="#principles">Principles</a></nav><div className="landing-actions"><Link href="/sign-in" className="landing-login">Sign in</Link><Link href={launchHref} className="landing-nav-cta">{isLoaded&&isSignedIn?'Open workspace':'Get started'} <span>↗</span></Link></div></header>
-   <section className="landing-hero"><div className="landing-copy"><div className="landing-kicker"><i/> AUTONOMOUS CUSTOMER OPERATIONS</div><h1>Resolve the issue.<br/><em>Earn the trust.</em></h1><p className="landing-lede">A resolution agent that investigates customer problems, applies your business policies, takes the right action and verifies the result.</p><div className="landing-ctas"><Link href={launchHref} className="landing-primary">{isLoaded&&isSignedIn?'Open your workspace':'Explore ResolveAI'} <span>↗</span></Link><a href="#workflow" className="landing-secondary">See how it works <span>↓</span></a></div><div className="landing-proof"><span><b>01</b> Ground decisions in evidence</span><span><b>02</b> Act within business policy</span><span><b>03</b> Verify before closing</span></div></div><div className="landing-visual"><div className="visual-orbit orbit-a"/><div className="visual-orbit orbit-b"/><div className="visual-core"><span>R</span><small>RESOLVEAI AGENT</small></div><div className="orbit-label ol-one"><b>01</b> Investigate</div><div className="orbit-label ol-two"><b>02</b> Decide</div><div className="orbit-label ol-three"><b>03</b> Execute</div><div className="orbit-label ol-four"><b>04</b> Verify</div><div className="visual-note"><i/> One goal. Adaptive execution.</div></div></section>
-   <section className="landing-trust"><span>BUILT FOR COMPLEX CUSTOMER OPERATIONS</span><div><b>Commerce</b><i/><b>Subscriptions</b><i/><b>Services</b><i/><b>Logistics</b><i/><b>Support teams</b></div></section>
-   <section className="landing-platform" id="platform"><div className="section-heading"><span>THE RESOLVEAI PLATFORM</span><h2>From a customer complaint<br/>to a verified resolution.</h2><p>One connected workspace for the data, policies, decisions and operations behind every customer outcome.</p></div><ProductPreview/></section>
-   <section className="landing-workflow" id="workflow"><div className="section-heading"><span>HOW IT WORKS</span><h2>Not another chatbot.<br/>An agent that follows through.</h2></div><div className="workflow-grid">{[['01','Investigate','Gather customer, order, inventory and policy evidence before deciding.'],['02','Reason against policy','Evaluate the issue against rules configured by your business.'],['03','Choose and adapt','Select tools dynamically and replan when an operation is unavailable.'],['04','Verify the outcome','Check the resulting state and surface exceptions for human review.']].map(x=><article key={x[0]}><span>{x[0]}</span><h3>{x[1]}</h3><p>{x[2]}</p></article>)}</div></section>
-   <section className="landing-bottom" id="principles"><div><span>DESIGNED FOR ACCOUNTABLE AUTOMATION</span><h2>Every action should have<br/>a reason. Every result, proof.</h2></div><div className="bottom-points"><p><b>Policy-led</b> Decisions are grounded in the business rules you configure.</p><p><b>Auditable</b> Tool calls, evidence and outcomes belong in the case history.</p><p><b>Human-aware</b> Uncertain or blocked cases should be surfaced, not hidden.</p></div></section>
-   <footer className="landing-footer"><Link href="/" className="landing-logo"><span>R</span> ResolveAI</Link><span>Autonomous resolution, with accountability.</span><div><Link href="/sign-in">Sign in</Link><Link href={launchHref}>Workspace ↗</Link></div></footer>
- </main>
+  const [active, setActive] = useState(0)
+  const [leaving, setLeaving] = useState<number | null>(null)
+
+  const selectScene = useCallback((i: number) => {
+    if (i === active) return
+    setLeaving(active)
+    setActive(i)
+    const t = window.setTimeout(() => setLeaving(null), 900)
+    return () => clearTimeout(t)
+  }, [active])
+
+  return (
+    <div className="qf">
+      {/* Floating Pill Nav with mascot logo */}
+      <Nav overLight={SCENES[active].tone === 'light'} />
+
+      {/* Hero Carousel with 3 banners + glass view controller */}
+      <Hero active={active} leaving={leaving} onSelect={selectScene} />
+
+      {/* Standards strip */}
+      <div className="qf-standards">
+        <div className="qf-wrap">
+          <div className="qf-standards__row">
+            <p className="qf-standards__lead">Guaranteed operational principles behind every case resolution:</p>
+            <ul className="qf-standards__list">
+              {STANDARDS.map((s) => (
+                <li key={s.name}>
+                  <strong>{s.name}</strong>
+                  <span>{s.note}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* 3-Card Feature Gallery using the 3 generated banners */}
+      <FeatureGallery />
+
+      {/* 5-Step Interactive Architecture Stepper */}
+      <PipelineSection />
+
+      {/* Final Executive CTA */}
+      <FinalCta />
+    </div>
+  )
 }

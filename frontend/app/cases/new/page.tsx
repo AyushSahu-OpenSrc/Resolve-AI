@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { NavShell } from '@/components/NavShell'
 import { api } from '@/lib/api'
+import { IconMic } from '@/components/icons'
 
 type Customer = { id: string; name: string; email: string; tier: string }
 type Order = { id: string; customer_id: string; product_id: string; status: string; issue_type: string | null; total_amount: number }
@@ -33,6 +34,93 @@ export default function NewCasePage() {
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isListening, setIsListening] = useState(false)
+  const [speechSupported, setSpeechSupported] = useState(false)
+  const recognitionRef = useRef<any>(null)
+  const baseTextRef = useRef<string>('')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      if (SpeechRecognition) {
+        setSpeechSupported(true)
+      }
+    }
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop()
+        } catch {}
+      }
+    }
+  }, [])
+
+  const toggleListening = () => {
+    if (typeof window === 'undefined') return
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) return
+
+    if (isListening) {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop()
+        } catch {}
+      }
+      setIsListening(false)
+      recognitionRef.current = null
+      return
+    }
+
+    try {
+      const recognition = new SpeechRecognition()
+      recognition.continuous = true
+      recognition.interimResults = true
+      recognition.lang = 'en-US'
+      baseTextRef.current = form.customer_message.trim()
+
+      recognition.onresult = (event: any) => {
+        let final = ''
+        let interim = ''
+        for (let i = 0; i < event.results.length; i++) {
+          const res = event.results[i]
+          if (res.isFinal) {
+            final += res[0].transcript
+          } else {
+            interim += res[0].transcript
+          }
+        }
+        const spoken = [final.trim(), interim.trim()].filter(Boolean).join(' ')
+        const combined = [baseTextRef.current, spoken].filter(Boolean).join(' ')
+        setForm(f => ({
+          ...f,
+          customer_message: combined,
+        }))
+      }
+
+      recognition.onerror = () => {
+        setIsListening(false)
+        recognitionRef.current = null
+      }
+      recognition.onend = () => {
+        setIsListening(false)
+        recognitionRef.current = null
+      }
+
+      recognition.start()
+      recognitionRef.current = recognition
+      setIsListening(true)
+    } catch (err) {
+      console.error(err)
+      setIsListening(false)
+      recognitionRef.current = null
+    }
+  }
+
+  useEffect(() => {
+    // Prefill from the Ask AI panel (/cases/new?message=...)
+    const prefill = new URLSearchParams(window.location.search).get('message')
+    if (prefill) setForm(f => ({ ...f, customer_message: prefill }))
+  }, [])
 
   useEffect(() => {
     Promise.all([api.getCustomers(), api.getOrders()])
@@ -63,8 +151,9 @@ export default function NewCasePage() {
       const newCase = await api.createCase(form)
       await api.resolveCase(newCase.id)
       router.push(`/cases/${newCase.id}`)
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e: unknown) {
+      const errorMsg = e instanceof Error ? e.message : String(e)
+      setError(errorMsg)
       setSubmitting(false)
     }
   }
@@ -141,13 +230,40 @@ export default function NewCasePage() {
 
               {/* Message */}
               <div style={{ marginBottom: '1.125rem' }}>
-                <label className="form-label" htmlFor="customer_message">Customer message</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="form-label" htmlFor="customer_message" style={{ margin: 0 }}>Customer conflict / message</label>
+                  {speechSupported && (
+                    <button
+                      type="button"
+                      onClick={toggleListening}
+                      style={{
+                        padding: '2px 8px',
+                        fontSize: '11px',
+                        borderRadius: '12px',
+                        border: `1px solid ${isListening ? 'var(--error)' : 'var(--line)'}`,
+                        background: isListening ? 'var(--error-tint)' : 'var(--panel)',
+                        color: isListening ? 'var(--error)' : 'var(--ink-muted)',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      {isListening ? (
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: 'var(--error, #ef4444)', display: 'inline-block' }} />
+                      ) : (
+                        <IconMic size={14} />
+                      )}
+                      <span>{isListening ? 'Listening…' : 'Speak with Mic'}</span>
+                    </button>
+                  )}
+                </div>
                 <textarea
                   id="customer_message"
                   className="form-textarea"
                   value={form.customer_message}
                   onChange={e => setForm(f => ({ ...f, customer_message: e.target.value }))}
-                  placeholder="Describe the customer's issue as they would state it..."
+                  placeholder="Describe the customer's issue or click 'Speak with Mic' to dictate..."
                   rows={4}
                 />
                 <div className="form-hint">
@@ -192,7 +308,7 @@ export default function NewCasePage() {
 
         {/* What happens next */}
         <div style={{ marginTop: '1.5rem', padding: '0 0.25rem' }}>
-          <div style={{ fontSize: '0.6875rem', fontWeight: 500, color: 'var(--ink-muted)', marginBottom: '0.75rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--ink)', marginBottom: '0.75rem' }}>
             What happens when you submit
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

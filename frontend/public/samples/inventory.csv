@@ -1,0 +1,16 @@
+id,product_id,product_name,sku,category,price,warehouse,quantity,reserved_quantity
+INV-001,PROD-HP01,Premium Wireless Headphones,WH-PRM-BLK-01,audio,4999.00,Mumbai,0,0
+INV-002,PROD-HP01,Premium Wireless Headphones,WH-PRM-BLK-01,audio,4999.00,Pune,2,0
+INV-003,PROD-HP01,Premium Wireless Headphones,WH-PRM-BLK-01,audio,4999.00,Bengaluru,15,0
+INV-004,PROD-SP02,Smart Speaker Pro,SS-PRO-WHT-02,electronics,2999.00,Mumbai,5,0
+INV-005,PROD-SP02,Smart Speaker Pro,SS-PRO-WHT-02,electronics,2999.00,Pune,8,0
+INV-006,PROD-SP02,Smart Speaker Pro,SS-PRO-WHT-02,electronics,2999.00,Delhi,12,0
+INV-007,PROD-KB03,Mechanical Keyboard TKL,KB-TKL-BLK-03,peripherals,3499.00,Mumbai,8,0
+INV-008,PROD-KB03,Mechanical Keyboard TKL,KB-TKL-BLK-03,peripherals,3499.00,Bengaluru,4,0
+INV-009,PROD-MS04,Ergonomic Mouse Pro,MS-ERG-SLV-04,peripherals,1999.00,Mumbai,6,0
+INV-010,PROD-MS04,Ergonomic Mouse Pro,MS-ERG-SLV-04,peripherals,1999.00,Pune,2,0
+INV-011,PROD-MN05,UltraWide 4K Gaming Monitor,MN-4K-34-05,electronics,28999.00,Mumbai,1,0
+INV-012,PROD-MN05,UltraWide 4K Gaming Monitor,MN-4K-34-05,electronics,28999.00,Bengaluru,4,0
+INV-013,PROD-CAM06,Studio 4K Stream Webcam,CAM-4K-PRO-06,peripherals,5499.00,Pune,10,0
+INV-014,PROD-CAM06,Studio 4K Stream Webcam,CAM-4K-PRO-06,peripherals,5499.00,Delhi,7,0
+

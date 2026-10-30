@@ -3,19 +3,24 @@ ResolveAI FastAPI application.
 """
 from __future__ import annotations
 
+import asyncio
 import csv
 import io
 import json
+import logging
 import os
 import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, List
 
+logger = logging.getLogger("resolveai.main")
+
+import google.generativeai as genai
 from fastapi import FastAPI, Depends, HTTPException, Query, BackgroundTasks, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -27,6 +32,11 @@ from app.models import (
 from app.tools import _now
 import app.seed as seed_module
 
+# ─── LLM config (shared by chat endpoint) ─────────────────────────────────────
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+
 # ─── App setup ────────────────────────────────────────────────────────────────
 
 app = FastAPI(
@@ -36,14 +46,18 @@ app = FastAPI(
 )
 
 # CORS
-ALLOWED_ORIGINS = os.getenv(
-    "ALLOWED_ORIGINS",
-    "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000"
-).split(",")
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "ALLOWED_ORIGINS",
+        "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000"
+    ).split(",")
+    if origin.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Tighten in production
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -89,6 +103,16 @@ class AgentEventResponse(BaseModel):
     input_data: Optional[str]
     output_data: Optional[str]
     sequence_number: int
+
+
+class ChatRequest(BaseModel):
+    message: str
+    case_id: Optional[str] = None
+
+
+class ActionRequest(BaseModel):
+    action_type: str  # replacement | refund | email | escalate
+    options: dict = {}
 
 
 # ─── Health ───────────────────────────────────────────────────────────────────
@@ -362,7 +386,7 @@ class PolicyCreate(BaseModel):
 def create_policy(req: PolicyCreate, session: Session = Depends(get_session)):
     if session.get(Policy, req.id):
         raise HTTPException(409, f"Policy {req.id} already exists")
-    
+
     policy = Policy(
         id=req.id, category=req.category, policy_text=req.policy_text,
         eligibility_rules_json=json.dumps(req.eligibility_rules)
@@ -377,11 +401,11 @@ def update_policy(policy_id: str, req: PolicyCreate, session: Session = Depends(
     policy = session.get(Policy, policy_id)
     if not policy:
         raise HTTPException(404, "Policy not found")
-    
+
     policy.category = req.category
     policy.policy_text = req.policy_text
     policy.eligibility_rules_json = json.dumps(req.eligibility_rules)
-    
+
     session.add(policy)
     session.commit()
     return {"status": "success", "id": policy.id}
@@ -392,10 +416,55 @@ def delete_policy(policy_id: str, session: Session = Depends(get_session)):
     policy = session.get(Policy, policy_id)
     if not policy:
         raise HTTPException(404, "Policy not found")
-    
+
     session.delete(policy)
     session.commit()
     return {"status": "success", "id": policy_id}
+
+
+@app.post("/api/import/policies")
+async def import_policies(file: UploadFile = File(...), session: Session = Depends(get_session)):
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(400, "Only CSV files are supported")
+    try:
+        decoded = (await file.read()).decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(400, "CSV must be UTF-8 encoded")
+    reader = csv.DictReader(io.StringIO(decoded))
+    headers = {h.strip().lower() for h in (reader.fieldnames or []) if h}
+    if not {"id", "category", "policy_text"}.issubset(headers):
+        raise HTTPException(400, "Policies CSV requires columns: id, category, policy_text")
+    count = 0
+    try:
+        for raw in reader:
+            row = {(k or "").strip().lower(): (v or "").strip() for k, v in raw.items()}
+            policy_id = row.get("id")
+            category = row.get("category")
+            policy_text = row.get("policy_text")
+            if not policy_id or not category or not policy_text:
+                continue
+            rules_raw = row.get("eligibility_rules") or row.get("eligibility_rules_json") or "{}"
+            try:
+                rules_obj = json.loads(rules_raw) if rules_raw.strip().startswith("{") else {"description": rules_raw}
+                rules_json = json.dumps(rules_obj)
+            except Exception:
+                rules_json = json.dumps({"description": rules_raw})
+
+            p = session.get(Policy, policy_id)
+            if p is None:
+                p = Policy(id=policy_id, category=category, policy_text=policy_text,
+                           eligibility_rules_json=rules_json, active=True)
+            else:
+                p.category = category
+                p.policy_text = policy_text
+                p.eligibility_rules_json = rules_json
+            session.add(p)
+            count += 1
+        session.commit()
+    except Exception as exc:
+        session.rollback()
+        raise HTTPException(400, f"Policy import failed: {exc}")
+    return {"status": "success", "imported": count}
 
 
 # ─── Cases ────────────────────────────────────────────────────────────────────
@@ -518,8 +587,8 @@ def get_case_events(
         try:
             since_dt = datetime.fromisoformat(since.replace("Z", "+00:00")).replace(tzinfo=None)
             query = query.where(AgentEvent.timestamp > since_dt)
-        except Exception:
-            pass
+        except (ValueError, TypeError) as exc:
+            logger.warning("Invalid since timestamp %s for case %s: %s", since, case_id, exc)
 
     events = session.exec(query.order_by(AgentEvent.sequence_number)).all()
     return [
@@ -574,13 +643,221 @@ def start_resolution(
             from app.agent import run_agent
             run_agent(case_id)
         except Exception as e:
-            print(f"Agent error for {case_id}: {e}")
+            logger.exception("Agent error for %s: %s", case_id, e)
         finally:
             with _agent_lock:
                 _running_agents.discard(case_id)
 
     background_tasks.add_task(run_and_cleanup)
     return {"status": "started", "case_id": case_id}
+
+
+# ─── Chat SSE Streaming Endpoint ──────────────────────────────────────────────
+
+@app.post("/api/chat")
+async def chat_endpoint(req: ChatRequest):
+    """
+    SSE streaming chat endpoint backed by Gemini (Groq fallback on quota errors).
+    Returns text/event-stream with token-by-token chunks and a final done event.
+    """
+    async def generate():
+        try:
+            system_ctx = (
+                "You are ResolveAI's customer resolution assistant. "
+                "You help support agents understand cases, policies, and resolution options. "
+                "Be concise, professional, and helpful. "
+                "If asked about a specific case, provide context-aware guidance."
+            )
+
+            # Try Gemini streaming
+            try:
+                genai.configure(api_key=GEMINI_API_KEY)
+                model = genai.GenerativeModel(GEMINI_MODEL)
+                response = model.generate_content(
+                    [system_ctx + "\n\nUser: " + req.message],
+                    stream=True
+                )
+                for chunk in response:
+                    if chunk.text:
+                        yield f"data: {json.dumps({'token': chunk.text})}\n\n"
+                        await asyncio.sleep(0)
+            except Exception as e:
+                # Fall back to Groq streaming
+                from groq import Groq
+                GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+                if not GROQ_API_KEY:
+                    raise RuntimeError("GROQ_API_KEY environment variable is not configured")
+                client = Groq(api_key=GROQ_API_KEY)
+                stream = client.chat.completions.create(
+                    model="openai/gpt-oss-120b",
+                    messages=[
+                        {"role": "system", "content": system_ctx},
+                        {"role": "user", "content": req.message}
+                    ],
+                    stream=True,
+                    max_tokens=1024
+                )
+                for chunk in stream:
+                    token = chunk.choices[0].delta.content or ""
+                    if token:
+                        yield f"data: {json.dumps({'token': token})}\n\n"
+                        await asyncio.sleep(0)
+
+            yield f"data: {json.dumps({'done': True})}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
+# ─── Case Actions Endpoint ─────────────────────────────────────────────────────
+
+@app.post("/api/cases/{case_id}/actions")
+async def execute_case_action(
+    case_id: str,
+    action_req: ActionRequest,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
+    """
+    Execute a chosen resolution action for a case.
+
+    action_type values:
+      - replacement : trigger create_replacement flow
+      - refund      : update order status to "refunded"
+      - email       : generate an email draft via LLM
+      - escalate    : update case status to "escalated"
+    """
+    case = session.get(SupportCase, case_id)
+    if not case:
+        raise HTTPException(404, "Case not found")
+
+    action_type = action_req.action_type.lower()
+
+    if action_type == "replacement":
+        # Reuse the agent's replacement flow via background task
+        with _agent_lock:
+            if case_id in _running_agents:
+                raise HTTPException(409, "Agent already running for this case")
+            _running_agents.add(case_id)
+
+        def run_and_cleanup():
+            try:
+                from app.agent import run_agent
+                run_agent(case_id)
+            except Exception as e:
+                logger.exception("Agent error for %s: %s", case_id, e)
+            finally:
+                with _agent_lock:
+                    _running_agents.discard(case_id)
+
+        background_tasks.add_task(run_and_cleanup)
+        return {"status": "started", "action_type": "replacement", "case_id": case_id}
+
+    elif action_type == "refund":
+        order = session.get(Order, case.order_id)
+        if not order:
+            raise HTTPException(404, "Order not found for this case")
+        order.status = "refunded"
+        case.status = "resolved"
+        case.resolution_summary = json.dumps({
+            "summary": "Order refunded via manual action.",
+            "actionable_options": [],
+        })
+        case.updated_at = _now()
+        case.resolved_at = _now()
+        session.add(order)
+        session.add(case)
+        session.commit()
+        return {"status": "success", "action_type": "refund", "case_id": case_id, "order_status": "refunded"}
+
+    elif action_type == "email":
+        # Generate an email draft using LLM
+        customer = session.get(Customer, case.customer_id)
+        order = session.get(Order, case.order_id)
+        product = session.get(Product, order.product_id) if order else None
+
+        prompt = f"""You are a customer support email writer for ResolveAI.
+
+Write a professional, empathetic customer-facing email for the following case:
+
+Customer Name: {customer.name if customer else 'Valued Customer'}
+Customer Email: {customer.email if customer else 'N/A'}
+Order ID: {order.id if order else 'N/A'}
+Product: {product.name if product else 'N/A'}
+Issue: {case.customer_message}
+Resolution: {action_req.options.get('resolution_note', 'We are working on resolving your issue.')}
+
+Return ONLY a valid JSON object with these fields:
+{{
+  "email_subject": "...",
+  "email_body": "..."
+}}"""
+
+        try:
+            genai.configure(api_key=GEMINI_API_KEY)
+            model = genai.GenerativeModel(
+                model_name=GEMINI_MODEL,
+                generation_config={"response_mime_type": "application/json"},
+            )
+            response = model.generate_content(prompt)
+            raw = response.text.strip()
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+            email_data = json.loads(raw.strip())
+        except Exception as e:
+            try:
+                from groq import Groq
+                GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+                if not GROQ_API_KEY:
+                    raise RuntimeError("GROQ_API_KEY environment variable is not configured")
+                client = Groq(api_key=GROQ_API_KEY)
+                completion = client.chat.completions.create(
+                    model="openai/gpt-oss-120b",
+                    messages=[
+                        {"role": "system", "content": "You are a JSON-only response AI. Return only valid JSON."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,
+                    max_tokens=1024,
+                    response_format={"type": "json_object"}
+                )
+                email_data = json.loads(completion.choices[0].message.content.strip())
+            except Exception as e_groq:
+                raise HTTPException(500, f"Failed to generate email: {str(e_groq)}")
+
+        return {
+            "status": "success",
+            "action_type": "email",
+            "case_id": case_id,
+            "email_subject": email_data.get("email_subject", ""),
+            "email_body": email_data.get("email_body", ""),
+        }
+
+    elif action_type == "escalate":
+        case.status = "escalated"
+        reason = action_req.options.get("reason", "Manually escalated by support agent.")
+        case.resolution_summary = json.dumps({
+            "summary": reason,
+            "actionable_options": [],
+        })
+        case.updated_at = _now()
+        session.add(case)
+        session.commit()
+        return {"status": "success", "action_type": "escalate", "case_id": case_id}
+
+    else:
+        raise HTTPException(400, f"Unknown action_type: {action_type}. Must be one of: replacement, refund, email, escalate")
 
 
 # ─── Demo ─────────────────────────────────────────────────────────────────────
@@ -629,7 +906,7 @@ def reset_case(session: Session, case_id: str):
         case.resolved_at = None
         case.updated_at = _now()
         session.add(case)
-        
+
         # Reset order status if it exists
         order = session.get(Order, case.order_id)
         if order:
@@ -705,6 +982,65 @@ def get_analytics(session: Session = Depends(get_session)):
         "avg_agent_turns": round(avg_turns, 1),
         "total_executions": len(executions),
     }
+
+
+# ─── Chutku Neural Text-to-Speech ──────────────────────────────────────────
+
+class ChutkuTTSRequest(BaseModel):
+    text: str
+    voice: Optional[str] = "neerja"
+    language: Optional[str] = "en-IN"
+    speed: Optional[float] = 1.0
+    emotion: Optional[str] = "friendly"
+
+
+@app.post("/api/chutku/tts")
+async def chutku_tts(req: ChutkuTTSRequest):
+    from app.tts import get_audio_stream
+    if not req.text or not req.text.strip():
+        raise HTTPException(400, "Text is required for speech synthesis")
+    # Limit max text length for safety
+    text = req.text[:1400]
+    return StreamingResponse(
+        get_audio_stream(
+            text,
+            voice=req.voice or "neerja",
+            language=req.language or "en-IN",
+            speed=req.speed or 1.0,
+        ),
+        media_type="audio/mpeg",
+        headers={
+            "Content-Disposition": "inline; filename=chutku_speech.mp3",
+            "Cache-Control": "public, max-age=3600",
+        },
+    )
+
+
+@app.get("/api/chutku/voices")
+def get_chutku_voices():
+    return [
+        {
+            "id": "neerja",
+            "name": "Neerja (Soft, Cheerful & Warm)",
+            "gender": "Female",
+            "accent": "Indian English (Expressive)",
+            "default": True,
+        },
+        {
+            "id": "prabhat",
+            "name": "Prabhat (Friendly & Youthful)",
+            "gender": "Male",
+            "accent": "Indian English",
+            "default": False,
+        },
+        {
+            "id": "swara",
+            "name": "Swara (Natural Hindi & Hinglish)",
+            "gender": "Female",
+            "accent": "Hindi / Hinglish",
+            "default": False,
+        },
+    ]
 
 
 # ─── Static files (Next.js build) ────────────────────────────────────────────

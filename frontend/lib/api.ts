@@ -53,12 +53,12 @@ export const api = {
 
   // Policies
   getPolicies: () => apiFetch('/api/policies'),
-  createPolicy: (data: any) => apiFetch('/api/policies', { method: 'POST', body: JSON.stringify(data) }),
-  updatePolicy: (id: string, data: any) => apiFetch(`/api/policies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  createPolicy: (data: Record<string, unknown>) => apiFetch('/api/policies', { method: 'POST', body: JSON.stringify(data) }),
+  updatePolicy: (id: string, data: Record<string, unknown>) => apiFetch(`/api/policies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deletePolicy: (id: string) => apiFetch(`/api/policies/${id}`, { method: 'DELETE' }),
 
   // Imports
-  uploadCsv: (type: 'customers' | 'orders' | 'inventory', file: File) => 
+  uploadCsv: (type: 'customers' | 'orders' | 'inventory' | 'policies', file: File) => 
     apiUpload(`/api/import/${type}`, file),
 
   // Cases
@@ -79,6 +79,23 @@ export const api = {
   // Demo
   resetDemo: () => apiFetch('/api/demo/reset', { method: 'POST' }),
   runDemo: () => apiFetch('/api/demo/run', { method: 'POST' }),
+
+  // Chat (SSE streaming) - returns raw Response for caller to handle SSE
+  chatStream: (message: string, caseId?: string): Promise<Response> => {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    return fetch(`${API_BASE_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, case_id: caseId }),
+    })
+  },
+
+  // Execute a post-resolution action
+  executeAction: (caseId: string, actionType: string, options?: Record<string, unknown>) =>
+    apiFetch(`/api/cases/${caseId}/actions`, {
+      method: 'POST',
+      body: JSON.stringify({ action_type: actionType, ...options }),
+    }),
 }
 
 export type CaseDetail = {

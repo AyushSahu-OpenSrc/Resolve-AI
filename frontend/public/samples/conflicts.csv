@@ -1,0 +1,7 @@
+customer_id,order_id,customer_message
+CUST-001,ORD-1042,"My Premium Wireless Headphones arrived with a cracked headband and damaged packaging. I need an urgent replacement."
+CUST-002,ORD-1044,"The smart speaker has no audio output from the left speaker channel right out of the box. Please replace it."
+CUST-004,ORD-1046,"I ordered an Ergonomic Mouse Pro but received a gaming mouse instead. Please dispatch the correct item."
+CUST-008,ORD-1050,"The 4K monitor screen is shattered inside the box. Carrier delivered it in a crushed outer carton."
+CUST-009,ORD-1051,"The webcam autofocus is completely broken and keeps making clicking noises."
+

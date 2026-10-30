@@ -1,19 +1,21 @@
 """
-ResolveAI Agent Orchestrator — Low-Call Architecture (≤2 Gemini requests per case).
+ResolveAI Agent Orchestrator — Low-Call Architecture (≤2 LLM requests per case).
 
 ARCHITECTURE:
-  Phase 1 — OBSERVATION (no Gemini, direct DB reads, generates AgentEvents)
-  Phase 2 — GEMINI CALL #1: Plan (receives full context, returns structured decision)
+  Phase 1 — OBSERVATION (no LLM, direct DB reads, generates AgentEvents)
+  Phase 2 — LLM CALL #1: Plan (receives full context, returns structured decision)
   Phase 3 — EXECUTE: Backend tools execute the plan (real DB mutations, real failure possible)
-  Phase 4 — GEMINI CALL #2: Replan (only if Phase 3 fails; receives failure + updated state)
-  Phase 5 — VERIFY: Deterministic backend check, no Gemini
+  Phase 4 — LLM CALL #2: Replan (only if Phase 3 fails; receives failure + updated state)
+  Phase 5 — VERIFY: Deterministic backend check, no LLM
 
-Total Gemini requests:
+Total LLM requests:
   Happy path: 1
   Conflict/replan path: 2
 
+LLM strategy: Gemini first, auto-fallback to Groq on 429/quota errors.
+
 The UI still shows rich AgentEvent records (OBSERVING, DECISION, ACTION, BLOCKED,
-REPLANNING, VERIFIED) — these are execution events, not Gemini API calls.
+REPLANNING, VERIFIED) — these are execution events, not LLM API calls.
 """
 from __future__ import annotations
 
@@ -37,18 +39,18 @@ from app.tools import (
 )
 from app.database import engine
 
-# ─── Gemini setup ─────────────────────────────────────────────────────────────
+# ─── LLM setup ────────────────────────────────────────────────────────────────
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
-# ─── Observation Phase (no Gemini) ────────────────────────────────────────────
+# ─── Observation Phase (no LLM) ───────────────────────────────────────────────
 
 def _observe(session: Session, case_id: str, execution_id: str, seq_counter: list) -> dict:
     """
-    Gather the complete enterprise state from the database without calling Gemini.
+    Gather the complete enterprise state from the database without calling an LLM.
     Each read generates an AgentEvent for the UI (OBSERVING status).
-    Returns a structured context dict to be sent to Gemini in one call.
+    Returns a structured context dict to be sent to the LLM in one call.
     """
 
     def seq():
@@ -194,26 +196,49 @@ def _observe(session: Session, case_id: str, execution_id: str, seq_counter: lis
     }
 
 
-# ─── Gemini Helper ────────────────────────────────────────────────────────────
+# ─── LLM Helpers (Gemini → Groq fallback) ────────────────────────────────────
 
-def _call_gemini(prompt: str) -> dict:
-    """
-    Make a single Gemini call and return a parsed structured JSON response.
-    Gemini is asked to return ONLY a JSON object — no function calling.
-    """
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel(
-        model_name=GEMINI_MODEL,
-        generation_config={"response_mime_type": "application/json"},
+def _call_groq(prompt: str) -> dict:
+    """Call Groq API as fallback when Gemini quota is exhausted."""
+    from groq import Groq
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+    if not GROQ_API_KEY:
+        raise RuntimeError("GROQ_API_KEY environment variable is not configured")
+    client = Groq(api_key=GROQ_API_KEY)
+    completion = client.chat.completions.create(
+        model="openai/gpt-oss-120b",
+        messages=[
+            {"role": "system", "content": "You are a JSON-only response AI. Return only valid JSON."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.2,
+        max_tokens=2048,
+        response_format={"type": "json_object"}
     )
-    response = model.generate_content(prompt)
-    raw = response.text.strip()
-    # Strip markdown fences if present
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    return json.loads(raw.strip())
+    raw = completion.choices[0].message.content.strip()
+    return json.loads(raw)
+
+
+def _call_llm(prompt: str) -> dict:
+    """Try Gemini first, fall back to Groq on quota/rate-limit errors."""
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel(
+            model_name=GEMINI_MODEL,
+            generation_config={"response_mime_type": "application/json"},
+        )
+        response = model.generate_content(prompt)
+        raw = response.text.strip()
+        # Strip markdown fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        return json.loads(raw.strip())
+    except Exception as e:
+        # Fall back to Groq on any Gemini error (quota 429, invalid key, rate limit)
+        print(f"[LLM] Gemini call failed ({e}); falling back to Groq openai/gpt-oss-120b")
+        return _call_groq(prompt)
 
 
 # ─── Plan Prompt Builders ─────────────────────────────────────────────────────
@@ -255,10 +280,12 @@ If eligible:
   - Select resolution_type: "replacement" or "refund"
   - Select preferred_warehouse: the warehouse with the most available stock
   - Provide clear reasoning
+  - Provide 2-4 actionable_options the support agent can present to the customer
 
 If not eligible:
   - resolution_type: "escalate"
   - warehouse: null
+  - Still provide actionable_options appropriate for escalation
 
 Return this exact JSON structure:
 {{
@@ -268,7 +295,11 @@ Return this exact JSON structure:
   "preferred_warehouse": "Mumbai" | "Pune" | "Bengaluru" | null,
   "reasoning": "...",
   "confidence": "high" | "medium" | "low",
-  "action": "create_replacement" | "process_refund" | "escalate_to_human"
+  "action": "create_replacement" | "process_refund" | "escalate_to_human",
+  "actionable_options": [
+    {{"id": 1, "label": "...", "description": "...", "action_type": "replacement|refund|email|escalate"}},
+    {{"id": 2, "label": "...", "description": "...", "action_type": "replacement|refund|email|escalate"}}
+  ]
 }}"""
 
 
@@ -302,7 +333,11 @@ You must replan and select an alternative resolution. Return ONLY a valid JSON o
   "preferred_warehouse": "Mumbai" | "Pune" | "Bengaluru" | null,
   "reasoning": "...",
   "confidence": "high" | "medium" | "low",
-  "action": "create_replacement" | "process_refund" | "escalate_to_human"
+  "action": "create_replacement" | "process_refund" | "escalate_to_human",
+  "actionable_options": [
+    {{"id": 1, "label": "...", "description": "...", "action_type": "replacement|refund|email|escalate"}},
+    {{"id": 2, "label": "...", "description": "...", "action_type": "replacement|refund|email|escalate"}}
+  ]
 }}
 
 Select an alternative warehouse that has available stock. If no inventory is available anywhere, set decision to "ESCALATE"."""
@@ -312,7 +347,7 @@ Select an alternative warehouse that has available stock. If no inventory is ava
 
 def run_agent(case_id: str) -> dict:
     """
-    Main agent orchestration — ≤2 Gemini requests.
+    Main agent orchestration — ≤2 LLM requests.
     """
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY not set")
@@ -354,11 +389,11 @@ def run_agent(case_id: str) -> dict:
         )
 
         try:
-            # ── PHASE 1: OBSERVATION (no Gemini) ──────────────────────────────
+            # ── PHASE 1: OBSERVATION (no LLM) ─────────────────────────────────
             ctx = _observe(session, case_id, execution_id, seq_counter)
 
             if not ctx.get("eligible"):
-                # Not eligible — escalate without Gemini
+                # Not eligible — escalate without LLM
                 _log_event(
                     session, case_id, execution_id, "agent_decision",
                     EventType.decision, EventStatus.ESCALATED,
@@ -378,7 +413,7 @@ def run_agent(case_id: str) -> dict:
                 session.commit()
                 return {"status": "escalated", "case_id": case_id}
 
-            # ── PHASE 2: GEMINI CALL #1 — PLAN ───────────────────────────────
+            # ── PHASE 2: LLM CALL #1 — PLAN ───────────────────────────────────
             _log_event(
                 session, case_id, execution_id, "agent_plan",
                 EventType.decision, EventStatus.RUNNING,
@@ -386,7 +421,7 @@ def run_agent(case_id: str) -> dict:
                 None, None, seq()
             )
 
-            plan = _call_gemini(_build_plan_prompt(ctx))
+            plan = _call_llm(_build_plan_prompt(ctx))
 
             _log_event(
                 session, case_id, execution_id, "agent_decision",
@@ -400,7 +435,10 @@ def run_agent(case_id: str) -> dict:
                 case = session.get(SupportCase, case_id)
                 if case:
                     case.status = "escalated"
-                    case.resolution_summary = f"Agent escalated: {plan.get('reasoning', '')[:200]}"
+                    case.resolution_summary = json.dumps({
+                        "summary": f"Agent escalated: {plan.get('reasoning', '')[:200]}",
+                        "actionable_options": plan.get("actionable_options", []),
+                    })
                     case.updated_at = _now()
                     session.add(case)
                 execution.status = "escalated"
@@ -410,7 +448,7 @@ def run_agent(case_id: str) -> dict:
                 session.commit()
                 return {"status": "escalated", "case_id": case_id}
 
-            # ── PHASE 3: EXECUTE PLAN ─────────────────────────────────────────
+            # ── PHASE 3: EXECUTE PLAN ──────────────────────────────────────────
             order = session.get(Order, case.order_id) if (case := session.get(SupportCase, case_id)) else None
             product_id = order.product_id if order else None
             warehouse  = plan.get("preferred_warehouse")
@@ -428,9 +466,9 @@ def run_agent(case_id: str) -> dict:
                 seq=seq()
             )
 
-            # ── PHASE 4: CONDITIONAL REPLAN (GEMINI CALL #2) ─────────────────
+            # ── PHASE 4: CONDITIONAL REPLAN (LLM CALL #2) ─────────────────────
             if not result.get("success"):
-                # Action failed — refresh inventory from DB and call Gemini once more
+                # Action failed — refresh inventory from DB and call LLM once more
                 session.expire_all()
                 inv_records = session.exec(
                     select(Inventory).where(Inventory.product_id == product_id)
@@ -458,7 +496,7 @@ def run_agent(case_id: str) -> dict:
 
                 total_available = sum(w["available"] for w in updated_inventory)
                 if total_available == 0:
-                    # No inventory anywhere — escalate without 2nd Gemini call
+                    # No inventory anywhere — escalate without 2nd LLM call
                     _log_event(
                         session, case_id, execution_id, "agent_escalate",
                         EventType.escalation, EventStatus.ESCALATED,
@@ -468,7 +506,10 @@ def run_agent(case_id: str) -> dict:
                     case = session.get(SupportCase, case_id)
                     if case:
                         case.status = "escalated"
-                        case.resolution_summary = "Escalated: no inventory available at any warehouse."
+                        case.resolution_summary = json.dumps({
+                            "summary": "Escalated: no inventory available at any warehouse.",
+                            "actionable_options": plan.get("actionable_options", []),
+                        })
                         case.updated_at = _now()
                         session.add(case)
                     execution.status = "escalated"
@@ -478,8 +519,8 @@ def run_agent(case_id: str) -> dict:
                     session.commit()
                     return {"status": "escalated", "case_id": case_id}
 
-                # Gemini Call #2 — Replan
-                replan = _call_gemini(_build_replan_prompt(ctx, plan, result))
+                # LLM Call #2 — Replan
+                replan = _call_llm(_build_replan_prompt(ctx, plan, result))
 
                 new_warehouse = replan.get("preferred_warehouse")
 
@@ -496,7 +537,10 @@ def run_agent(case_id: str) -> dict:
                     case = session.get(SupportCase, case_id)
                     if case:
                         case.status = "escalated"
-                        case.resolution_summary = f"Escalated after replan: {replan.get('reasoning', '')[:200]}"
+                        case.resolution_summary = json.dumps({
+                            "summary": f"Escalated after replan: {replan.get('reasoning', '')[:200]}",
+                            "actionable_options": replan.get("actionable_options", plan.get("actionable_options", [])),
+                        })
                         case.updated_at = _now()
                         session.add(case)
                     execution.status = "escalated"
@@ -524,7 +568,10 @@ def run_agent(case_id: str) -> dict:
                     case = session.get(SupportCase, case_id)
                     if case:
                         case.status = "escalated"
-                        case.resolution_summary = "Replanned action also failed — escalated."
+                        case.resolution_summary = json.dumps({
+                            "summary": "Replanned action also failed — escalated.",
+                            "actionable_options": replan.get("actionable_options", plan.get("actionable_options", [])),
+                        })
                         case.updated_at = _now()
                         session.add(case)
                     execution.status = "escalated"
@@ -534,7 +581,12 @@ def run_agent(case_id: str) -> dict:
                     session.commit()
                     return {"status": "escalated", "case_id": case_id}
 
-            # ── PHASE 5: VERIFICATION (no Gemini, deterministic) ─────────────
+                # Use replan's actionable_options for final summary
+                actionable_options = replan.get("actionable_options", plan.get("actionable_options", []))
+            else:
+                actionable_options = plan.get("actionable_options", [])
+
+            # ── PHASE 5: VERIFICATION (no LLM, deterministic) ─────────────────
             _log_event(
                 session, case_id, execution_id, "verify_resolution",
                 EventType.verification, EventStatus.RUNNING,
@@ -547,6 +599,17 @@ def run_agent(case_id: str) -> dict:
                 execution_id=execution_id, seq=seq()
             )
 
+            # Save actionable_options to resolution_summary after successful verification
+            if verify_result.get("verified"):
+                case = session.get(SupportCase, case_id)
+                if case:
+                    existing_summary = case.resolution_summary or ""
+                    case.resolution_summary = json.dumps({
+                        "summary": existing_summary,
+                        "actionable_options": actionable_options,
+                    })
+                    session.add(case)
+
             execution.status = "completed" if verify_result.get("verified") else "failed"
             execution.completed_at = _now()
             execution.total_turns = 2
@@ -557,6 +620,7 @@ def run_agent(case_id: str) -> dict:
                 "status": "resolved" if verify_result.get("verified") else "failed",
                 "case_id": case_id,
                 "result": verify_result,
+                "actionable_options": actionable_options,
             }
 
         except Exception as e:

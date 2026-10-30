@@ -1,0 +1,12 @@
+id,name,email,tier,phone
+CUST-001,Rahul Sharma,rahul.sharma@example.com,premium,+91-9876543210
+CUST-002,Priya Patel,priya.patel@example.com,standard,+91-9876543211
+CUST-003,Amit Verma,amit.verma@example.com,premium,+91-9876543212
+CUST-004,Sneha Reddy,sneha.reddy@example.com,standard,+91-9876543213
+CUST-005,Kiran Kumar,kiran.kumar@example.com,enterprise,+91-9876543214
+CUST-006,Meera Singh,meera.singh@example.com,standard,+91-9876543215
+CUST-007,Rohan Gupta,rohan.gupta@example.com,premium,+91-9876543216
+CUST-008,Ananya Deshmukh,ananya.d@example.com,enterprise,+91-9876543217
+CUST-009,Vikram Malhotra,vikram.m@example.com,premium,+91-9876543218
+CUST-010,Tanvi Joshi,tanvi.j@example.com,standard,+91-9876543219
+

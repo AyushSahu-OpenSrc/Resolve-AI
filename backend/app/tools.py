@@ -327,12 +327,10 @@ def check_resolution_eligibility(
     reasons = []
     eligible = True
 
-    # Check order status
     if order.status not in rules.get("requires_order_status", []):
         eligible = False
         reasons.append(f"Order status '{order.status}' not in required {rules.get('requires_order_status')}")
 
-    # Check issue type
     if issue_type not in rules.get("allowed_issue_types", []):
         eligible = False
         reasons.append(f"Issue type '{issue_type}' not in allowed types {rules.get('allowed_issue_types')}")
@@ -582,7 +580,6 @@ def create_replacement(
     inv.updated_at = _now()
     session.add(inv)
 
-    # Update order status
     order.status = "replacement_processing"
     session.add(order)
 
@@ -668,7 +665,6 @@ def verify_resolution(
                         "detail": "No replacement record found"})
         all_passed = False
 
-    # Check 2: order status updated
     if order and order.status == "replacement_processing":
         checks.append({"check": "order_status_updated", "passed": True,
                         "detail": f"Order status: {order.status}"})
