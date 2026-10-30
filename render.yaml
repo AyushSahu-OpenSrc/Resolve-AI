@@ -16,7 +16,7 @@ services:
       - key: DATABASE_URL
         value: sqlite:///./resolveai.db
       - key: ALLOWED_ORIGINS
-        value: https://resolveai-frontend.onrender.com,http://localhost:3000
+        value: https://resolveai-frontend.onrender.com,https://resolveai-frontend-ffab.onrender.com,http://localhost:3000
 
   # ── Frontend (Next.js) ────────────────────────────────────────────────────
   - type: web
@@ -28,4 +28,6 @@ services:
     plan: free
     envVars:
       - key: NEXT_PUBLIC_API_URL
-        sync: false
+        value: https://resolveai-backend.onrender.com
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        value: pk_test_dW5jb21tb24tZ2FyLTQ3LmNsZXJrLmFjY291bnRzLmRldiQ

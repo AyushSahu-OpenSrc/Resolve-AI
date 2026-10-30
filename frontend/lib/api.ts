@@ -2,38 +2,73 @@
  * API client for ResolveAI backend.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+export function getApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      const custom = localStorage.getItem('resolveai_api_url')
+      if (custom) return custom.replace(/\/$/, '')
+    } catch {}
+    if (window.location.protocol === 'https:') {
+      if (window.location.hostname.includes('resolveai-frontend') && window.location.hostname.endsWith('.onrender.com')) {
+        return 'https://resolveai-backend.onrender.com'
+      }
+      return ''
+    }
+  }
+  return 'http://127.0.0.1:8000'
+}
 
 async function apiFetch(path: string, options?: RequestInit) {
-  const url = `${API_BASE}${path}`
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  })
-  if (!res.ok) {
-    const errorBody = await res.text()
-    throw new Error(`API ${res.status}: ${errorBody}`)
+  const base = getApiBase()
+  const url = `${base}${path}`
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    })
+    if (!res.ok) {
+      const errorBody = await res.text()
+      throw new Error(`API ${res.status}: ${errorBody}`)
+    }
+    return res.json()
+  } catch (err: unknown) {
+    if (err instanceof TypeError && err.message.toLowerCase().includes('fetch')) {
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'server'
+      throw new Error(`Unable to connect to backend API at ${base || origin}. Ensure the backend service is running.`)
+    }
+    throw err
   }
-  return res.json()
 }
 
 async function apiUpload(path: string, file: File) {
-  const url = `${API_BASE}${path}`
+  const base = getApiBase()
+  const url = `${base}${path}`
   const formData = new FormData()
   formData.append('file', file)
   
-  const res = await fetch(url, {
-    method: 'POST',
-    body: formData,
-  })
-  if (!res.ok) {
-    const errorBody = await res.text()
-    throw new Error(`API ${res.status}: ${errorBody}`)
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      body: formData,
+    })
+    if (!res.ok) {
+      const errorBody = await res.text()
+      throw new Error(`API ${res.status}: ${errorBody}`)
+    }
+    return res.json()
+  } catch (err: unknown) {
+    if (err instanceof TypeError && err.message.toLowerCase().includes('fetch')) {
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'server'
+      throw new Error(`Unable to connect to backend API at ${base || origin}. Ensure the backend service is running.`)
+    }
+    throw err
   }
-  return res.json()
 }
 
 export const api = {

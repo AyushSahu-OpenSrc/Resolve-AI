@@ -50,3 +50,6 @@ export const IconChevronLeft = (p: P) => <svg {...base(p)}><path d="m14.5 18-6-6
 export const IconCheck = (p: P) => <svg {...base(p)}><path d="M20 6 9 17l-5-5"/></svg>
 export const IconDatabase = (p: P) => <svg {...base(p)}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
 export const IconFileText = (p: P) => <svg {...base(p)}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>
+export const IconVolume = (p: P) => <svg {...base(p)}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+export const IconVolumeMute = (p: P) => <svg {...base(p)}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+export const IconPlay = (p: P) => <svg {...base(p)}><polygon points="5 3 19 12 5 21 5 3"/></svg>

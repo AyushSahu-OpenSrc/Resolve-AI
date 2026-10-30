@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useAgentRun } from '@/hooks/useAgentRun'
 import { api, AgentEvent } from '@/lib/api'
 import { NavShell } from '@/components/NavShell'
+import { IconMail } from '@/components/icons'
 
 function label(s?: string | null) {
   return (s || 'Unknown').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
@@ -352,8 +353,8 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
                 {/* Generated Email Draft Display */}
                 {generatedEmail && (
                   <div className="exec-fact-group" style={{ background: 'var(--panel)', border: '1px solid var(--info)', padding: '12px', borderRadius: '8px' }}>
-                    <p className="exec-fact-label" style={{ color: 'var(--info)' }}>
-                      ✉️ Generated Customer Dispatch
+                    <p className="exec-fact-label" style={{ color: 'var(--info)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <IconMail size={13} /> Generated Customer Dispatch
                     </p>
                     <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>{generatedEmail.subject}</div>
                     <pre style={{ fontSize: '11px', whiteSpace: 'pre-wrap', color: 'var(--ink-2)', margin: 0, fontFamily: 'inherit' }}>

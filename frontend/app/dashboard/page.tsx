@@ -47,17 +47,18 @@ function StatCard({ label, value, decimals = 0, suffix = '', note, tone, help, l
 }
 
 export default function DashboardPage() {
-  const { user } = useUser()
+  const { isLoaded, isSignedIn, user } = useUser()
   const [cases, setCases] = useState<CaseRow[]>([]), [customers, setCustomers] = useState<Row[]>([]), [orders, setOrders] = useState<Row[]>([]), [inventory, setInventory] = useState<Row[]>([]), [policies, setPolicies] = useState<Row[]>([])
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [now, setNow] = useState(0)
   useEffect(() => {
+    if (!isLoaded || !isSignedIn) return
     let active = true
     Promise.all([api.getCases(), api.getCustomers(), api.getOrders(), api.getInventory(), api.getPolicies()])
       .then(([c, cu, o, i, p]) => { if (!active) return; setNow(Date.now()); setCases(c); setCustomers(cu); setOrders(o); setInventory(i); setPolicies(p) })
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'The workspace API could not be reached.') })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [])
+  }, [isLoaded, isSignedIn])
 
   const open = cases.filter(c => !DONE.includes(lower(c.status)))
   const resolved = cases.filter(c => DONE.includes(lower(c.status)))

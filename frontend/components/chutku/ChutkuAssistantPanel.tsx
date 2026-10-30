@@ -2,8 +2,18 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import { useUser } from '@clerk/nextjs'
 import { api } from '@/lib/api'
-import { IconClose, IconMic, IconSend, IconSettings, IconSpark } from '@/components/icons'
+import {
+  IconClose,
+  IconMic,
+  IconPlay,
+  IconSend,
+  IconSettings,
+  IconSpark,
+  IconVolume,
+  IconVolumeMute,
+} from '@/components/icons'
 import type { ChutkuEmotion } from './ChutkuAvatar'
 
 interface Message {
@@ -34,11 +44,12 @@ export function ChutkuAssistantPanel({
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
+  const { isSignedIn } = useUser()
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'm1',
       role: 'assistant',
-      text: "Hey! I'm Chutku, your ResolveAI companion. Ask me anything about cases, warehouse stock, policies, or navigation!",
+      text: "Greetings. I am Chutku, your ResolveAI assistant. Ask me anything regarding customer cases, warehouse inventory, warranty policies, or system navigation.",
     },
   ])
   const [input, setInput] = useState('')
@@ -105,32 +116,32 @@ export function ChutkuAssistantPanel({
     setEmotion('idle')
   }
 
-  // Contextual suggestion chips based on active route
+  // Contextual suggestion chips based on active route (Formal, zero emojis)
   const getContextChips = () => {
     if (pathname.includes('/dashboard')) {
       return [
-        { label: '📊 Summarize open cases', prompt: 'Summarize our open cases' },
-        { label: '📦 Check Pune vs Mumbai stock', prompt: 'What is the stock in Mumbai and Pune hubs?' },
-        { label: '📥 Import new CSV data', prompt: 'Take me to the import center' },
+        { label: 'Summarize open cases', prompt: 'Summarize our open cases' },
+        { label: 'Check inventory distribution', prompt: 'What is the stock in Mumbai and Pune hubs?' },
+        { label: 'Import CSV datasets', prompt: 'Take me to the import center' },
       ]
     }
     if (pathname.includes('/cases')) {
       return [
-        { label: '⚡ Explain Case 1042', prompt: 'What is the status of Case CASE-1042?' },
-        { label: '🛡️ Check warranty policy', prompt: 'What is policy POL-DMG-01?' },
-        { label: '🎙️ Record new conflict', prompt: 'Take me to record a new case' },
+        { label: 'Audit Case 1042', prompt: 'What is the status of Case CASE-1042?' },
+        { label: 'Check warranty policy', prompt: 'What is policy POL-DMG-01?' },
+        { label: 'Record dispute via voice', prompt: 'Take me to record a new case' },
       ]
     }
     if (pathname.includes('/inventory') || pathname.includes('/explorer')) {
       return [
-        { label: '📍 Depleted warehouses', prompt: 'Which warehouse is out of headphones?' },
-        { label: '🔄 Show logistics routing', prompt: 'How does stock get routed from Pune?' },
+        { label: 'Depleted regional hubs', prompt: 'Which warehouse is out of headphones?' },
+        { label: 'Stock routing pathways', prompt: 'How does stock get routed from Pune?' },
       ]
     }
     return [
-      { label: '🚀 Open dashboard', prompt: 'Open my dashboard' },
-      { label: '📋 View all cases', prompt: 'Show me the case register' },
-      { label: '📦 Check inventory', prompt: 'Check warehouse inventory' },
+      { label: 'Open resolution dashboard', prompt: 'Open my dashboard' },
+      { label: 'View case register', prompt: 'Show me the case register' },
+      { label: 'Check inventory status', prompt: 'Check warehouse inventory' },
     ]
   }
 
@@ -269,46 +280,63 @@ export function ChutkuAssistantPanel({
     const userMsgId = 'u-' + Date.now()
     setMessages((prev) => [...prev, { id: userMsgId, role: 'user', text: query }])
 
-    // Direct navigation shortcuts
+    // Direct navigation shortcuts (Enforces authentication before entry)
     const qLower = query.toLowerCase()
+    const guardAuth = (target: string, name: string) => {
+      if (!isSignedIn) {
+        router.push('/sign-in?redirect_url=' + encodeURIComponent(target))
+        const reply = `Please sign in to access ${name}. Redirecting to sign in.`
+        setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: reply }])
+        speakText(reply)
+        return false
+      }
+      return true
+    }
+
     if (qLower.includes('open dashboard') || qLower.includes('go to dashboard')) {
+      if (!guardAuth('/dashboard', 'the Resolution Dashboard')) return
       router.push('/dashboard')
-      const reply = 'Taking you to your Resolution Dashboard right now!'
+      const reply = 'Navigating to your Resolution Dashboard.'
       setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: reply }])
       speakText(reply)
       return
     }
     if (qLower.includes('open case') || qLower.includes('show case') || qLower.includes('case register')) {
+      if (!guardAuth('/cases', 'the Case Register')) return
       router.push('/cases')
-      const reply = 'Opening the customer case register!'
+      const reply = 'Opening the customer case register.'
       setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: reply }])
       speakText(reply)
       return
     }
     if (qLower.includes('record') || qLower.includes('new case') || qLower.includes('mic')) {
+      if (!guardAuth('/cases/new', 'Case Intake')) return
       router.push('/cases/new')
-      const reply = 'Opening the voice intake screen so you can speak or record a customer conflict.'
+      const reply = 'Opening the conflict intake screen to record dispute details.'
       setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: reply }])
       speakText(reply)
       return
     }
     if (qLower.includes('inventory') || qLower.includes('stock')) {
+      if (!guardAuth('/inventory', 'Inventory Management')) return
       router.push('/inventory')
-      const reply = 'Opening inventory! Mumbai Hub has 0 units of PROD-HP01, while Pune Hub has 2 units available.'
+      const reply = 'Opening inventory. Mumbai Hub has 0 units of PROD-HP01, while Pune Hub has 2 units allocated.'
       setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: reply }])
       speakText(reply)
       return
     }
     if (qLower.includes('import') || qLower.includes('csv')) {
+      if (!guardAuth('/imports', 'the Import Center')) return
       router.push('/imports')
-      const reply = 'Opening the CSV Import Center where you can upload and download sample datasets.'
+      const reply = 'Opening the CSV Import Center.'
       setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: reply }])
       speakText(reply)
       return
     }
     if (qLower.includes('policy') || qLower.includes('policies')) {
+      if (!guardAuth('/policies', 'Policies')) return
       router.push('/policies')
-      const reply = 'Showing your business policies! Under POL-DMG-01, damaged-on-arrival replacements are eligible within 7 days.'
+      const reply = 'Opening policy rules.'
       setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: reply }])
       speakText(reply)
       return
@@ -460,12 +488,12 @@ export function ChutkuAssistantPanel({
             <strong>Chutku AI Voice Companion</strong>
             <small>
               {isListening
-                ? '🎙 Listening to your voice…'
+                ? 'Listening to microphone input…'
                 : isSpeaking
-                ? '🔊 Speaking with human neural voice…'
+                ? 'Synthesizing neural voice…'
                 : isThinking
-                ? '⚡ Evaluating database state…'
-                : '● Ready to assist'}
+                ? 'Evaluating database state…'
+                : 'System ready'}
             </small>
           </div>
         </div>
@@ -484,10 +512,10 @@ export function ChutkuAssistantPanel({
           <button
             onClick={toggleMute}
             className="chutku-btn-icon"
-            style={{ width: 28, height: 28 }}
+            style={{ width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
             title={isMuted ? 'Unmute voice output' : 'Mute voice output'}
           >
-            {isMuted ? '🔇' : '🔊'}
+            {isMuted ? <IconVolumeMute size={14} /> : <IconVolume size={14} />}
           </button>
           {/* Close button */}
           <button
@@ -517,13 +545,13 @@ export function ChutkuAssistantPanel({
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: 600, color: '#38bdf8' }}>🎙️ Human Neural Voice Persona</span>
+            <span style={{ fontWeight: 600, color: '#38bdf8' }}>Neural Voice Persona</span>
             <button
               onClick={previewVoice}
               className="chutku-chip"
-              style={{ fontSize: '11px', padding: '3px 8px' }}
+              style={{ fontSize: '11px', padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
             >
-              ▶ Preview Voice
+              <IconPlay size={10} /> Preview Voice
             </button>
           </div>
 
@@ -542,7 +570,7 @@ export function ChutkuAssistantPanel({
                 borderColor: voice === 'neerja' ? '#38bdf8' : undefined,
               }}
             >
-              🌸 Neerja (Soft)
+              Neerja (Soft / Warm)
             </button>
             <button
               onClick={() => {
@@ -558,7 +586,7 @@ export function ChutkuAssistantPanel({
                 borderColor: voice === 'prabhat' ? '#38bdf8' : undefined,
               }}
             >
-              🎙️ Prabhat (Male)
+              Prabhat (Natural)
             </button>
             <button
               onClick={() => {
@@ -574,7 +602,7 @@ export function ChutkuAssistantPanel({
                 borderColor: voice === 'swara' ? '#38bdf8' : undefined,
               }}
             >
-              🌺 Swara (Hindi)
+              Swara (Hindi / Hinglish)
             </button>
           </div>
 

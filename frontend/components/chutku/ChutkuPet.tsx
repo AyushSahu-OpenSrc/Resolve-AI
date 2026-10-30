@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { ChutkuAvatar, ChutkuEmotion } from './ChutkuAvatar'
 import { ChutkuAssistantPanel } from './ChutkuAssistantPanel'
+import { IconSpark } from '@/components/icons'
 import './chutku.css'
 
 export function ChutkuPet() {
@@ -13,7 +14,7 @@ export function ChutkuPet() {
   const [isBlinking, setIsBlinking] = useState(false)
   const [isPanelOpen, setIsPanelOpen] = useState(false)
   const [showSpeechBubble, setShowSpeechBubble] = useState(false)
-  const [speechBubbleText, setSpeechBubbleText] = useState("Hey! I'm Chutku 🤖 Click to chat!")
+  const [speechBubbleText, setSpeechBubbleText] = useState("ResolveAI Assistant ready. Click to converse.")
   const [roamingEnabled, setRoamingEnabled] = useState(true)
   const [isMuted, setIsMuted] = useState(false)
   const [isHidden, setIsHidden] = useState(false)
@@ -208,7 +209,7 @@ export function ChutkuPet() {
         }}
         title="Summon Chutku AI"
       >
-        <span>🤖</span>
+        <IconSpark size={14} />
         <span>Wake Chutku</span>
       </button>
     )
