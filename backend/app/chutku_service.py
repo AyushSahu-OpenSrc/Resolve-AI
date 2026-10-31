@@ -396,20 +396,64 @@ def _execute_query(
             lines.append(f"- {p.id} ({p.category}): {p.policy_text}")
         return "\n".join(lines)
 
-    # ── 16. Support Cases Summary ──────────────────────────────────────────────────────
+    # ── 16. Screen & System Navigation Guidance ────────────────────────────────────────
+    if any(w in q_lower for w in ["home page", "landing page", "homepage", "landing", "go to home", "open home", "main page", "front page"]):
+        return "Navigating to the ResolveAI Landing Page. You can also click the ResolveAI logo in the top-left sidebar navigation at any time to return directly to the landing page."
+    if any(w in q_lower for w in ["dashboard", "dasboard", "open dashboard", "go to dashboard", "overview"]):
+        return "Navigating to the Resolution Dashboard. You can monitor active case resolutions, live regional inventory, and system metrics."
+    if any(w in q_lower for w in ["live demo", "simulator", "open demo", "go to demo"]):
+        return "Navigating to the Live System Demo screen."
+
+    # ── 17. Support Cases Summary & Filtered Inquiries ─────────────────────────────────
     if any(w in q_lower for w in ["case", "cases", "ticket", "dispute", "investigation"]):
         cid = auth_customer_id or "CUST-001"
-        cases = session.exec(
+        all_cases = session.exec(
             select(SupportCase).where(SupportCase.customer_id == cid).order_by(desc(SupportCase.created_at))
         ).all()
-        if cases:
-            lines = [f"Registered Support Cases for account '{cid}':"]
-            for c in cases:
+
+        pending_cases = [c for c in all_cases if c.status in ("open", "running", "processing", "pending")]
+        resolved_cases = [c for c in all_cases if c.status in ("resolved", "verified", "completed")]
+        escalated_cases = [c for c in all_cases if c.status == "escalated"]
+
+        # Check for specific inquiry filters
+        if any(w in q_lower for w in ["pending", "open", "active", "unresolved", "in progress"]):
+            if not pending_cases:
+                return (
+                    f"You have 0 pending cases on record for account '{cid}'. "
+                    f"All registered grievances have been successfully resolved ({len(resolved_cases)} resolved) "
+                    f"or escalated for review ({len(escalated_cases)} escalated)."
+                )
+            lines = [f"Registered Pending Cases ({len(pending_cases)}) for account '{cid}':"]
+            for c in pending_cases:
                 lines.append(f"- Case {c.id} (Status: {c.status}): \"{c.customer_message}\"")
+            return "\n".join(lines)
+
+        if any(w in q_lower for w in ["solved", "resolved", "closed", "completed", "done"]):
+            if not resolved_cases:
+                return f"You have 0 resolved cases on record for account '{cid}'."
+            lines = [f"Registered Resolved Cases ({len(resolved_cases)}) for account '{cid}':"]
+            for c in resolved_cases:
+                lines.append(f"- Case {c.id} (Status: Resolved): \"{c.customer_message}\"")
+            return "\n".join(lines)
+
+        if "escalated" in q_lower:
+            if not escalated_cases:
+                return f"You have 0 escalated cases on record for account '{cid}'."
+            lines = [f"Registered Escalated Cases ({len(escalated_cases)}) for account '{cid}':"]
+            for c in escalated_cases:
+                lines.append(f"- Case {c.id} (Status: Escalated): \"{c.customer_message}\"")
+            return "\n".join(lines)
+
+        if all_cases:
+            lines = [
+                f"Support Case Ledger for account '{cid}' (Total: {len(all_cases)} | Pending: {len(pending_cases)} | Resolved: {len(resolved_cases)} | Escalated: {len(escalated_cases)}):"
+            ]
+            for c in all_cases:
+                lines.append(f"- Case {c.id} (Status: {c.status.title()}): \"{c.customer_message}\"")
             return "\n".join(lines)
         return f"No registered support cases found for customer '{cid}'."
 
-    # ── 17. Offline Fallback / Honest Limitation (T10) ──────────────────────────────────
+    # ── 18. Offline Fallback / Honest Limitation (T10) ──────────────────────────────────
     return (
         "I am currently operating in verified local database mode while the external reasoning LLM is unreachable. "
         "I can retrieve and verify your orders, active cases, shipment events, policy eligibility, and warehouse stock from the live ledger. "

@@ -70,18 +70,66 @@ function parseChutkuIntent(rawQuery: string): ChutkuParsedIntent {
 
   // 4. Match explicit imperative navigation commands ONLY if not asking an informational question
   if (!isQuestion) {
-    if (/\b(open|go to|take me to|navigate to|switch to|show screen|load page)\b/i.test(stripped)) {
-      if (stripped.includes('dashboard')) return { type: 'NAVIGATION_COMMAND', targetPath: '/dashboard', targetName: 'the Resolution Dashboard' }
-      if (stripped.includes('cases/new') || stripped.includes('new case') || stripped.includes('intake')) return { type: 'NAVIGATION_COMMAND', targetPath: '/cases/new', targetName: 'Case Intake' }
-      if (stripped.includes('case') || stripped.includes('dispute')) return { type: 'NAVIGATION_COMMAND', targetPath: '/cases', targetName: 'the Case Register' }
-      if (stripped.includes('live demo') || stripped.includes('simulator') || stripped.includes('demo')) return { type: 'NAVIGATION_COMMAND', targetPath: '/live-demo', targetName: 'Live System Demo' }
-      if (stripped.includes('memory') || stripped.includes('customer profile')) return { type: 'NAVIGATION_COMMAND', targetPath: '/customer-memory', targetName: 'Customer Intelligence & Memory' }
-      if (stripped.includes('order') || stripped.includes('lifecycle') || stripped.includes('tracking')) return { type: 'NAVIGATION_COMMAND', targetPath: '/order-lifecycle', targetName: 'Order Lifecycle' }
-      if (stripped.includes('proactive') || stripped.includes('intelligence') || stripped.includes('delay')) return { type: 'NAVIGATION_COMMAND', targetPath: '/proactive-intelligence', targetName: 'Proactive Operational Intelligence' }
-      if (stripped.includes('inventory') || stripped.includes('stock')) return { type: 'NAVIGATION_COMMAND', targetPath: '/inventory', targetName: 'Inventory Hub' }
-      if (stripped.includes('policy') || stripped.includes('policies') || stripped.includes('warranty rules')) return { type: 'NAVIGATION_COMMAND', targetPath: '/policies', targetName: 'Resolution Policies' }
-      if (stripped.includes('import') || stripped.includes('csv')) return { type: 'NAVIGATION_COMMAND', targetPath: '/imports', targetName: 'CSV Import Center' }
-      if (stripped.includes('settings') || stripped.includes('workspace')) return { type: 'NAVIGATION_COMMAND', targetPath: '/onboarding', targetName: 'Workspace Settings' }
+    const isExplicitNav = /\b(open|go to|take me to|navigate to|switch to|show screen|load page|kholo|chalo|jao)\b/i.test(stripped)
+    const isExactPageMatch = /^(home|home page|homepage|landing|landing page|dashboard|dasboard|live demo|demo)$/i.test(stripped)
+
+    if (isExplicitNav || isExactPageMatch) {
+      // Home / Landing Page
+      if (/\b(home|landing|home page|homepage|landing page|main page|front page|root)\b/i.test(stripped)) {
+        return { type: 'NAVIGATION_COMMAND', targetPath: '/', targetName: 'the Landing Page (Home)' }
+      }
+      // Dashboard (including common typo 'dasboard')
+      if (/\b(dashboard|dasboard|dash board|overview)\b/i.test(stripped)) {
+        return { type: 'NAVIGATION_COMMAND', targetPath: '/dashboard', targetName: 'the Resolution Dashboard' }
+      }
+      // New case / intake
+      if (/\b(new case|create case|open case|intake|cases\/new)\b/i.test(stripped)) {
+        return { type: 'NAVIGATION_COMMAND', targetPath: '/cases/new', targetName: 'Case Intake' }
+      }
+      // Live demo / simulator
+      if (/\b(live demo|simulator|demo)\b/i.test(stripped)) {
+        return { type: 'NAVIGATION_COMMAND', targetPath: '/live-demo', targetName: 'Live System Demo' }
+      }
+      // Cases
+      if (/\b(cases|case|dispute|disputes)\b/i.test(stripped)) {
+        return { type: 'NAVIGATION_COMMAND', targetPath: '/cases', targetName: 'the Case Register' }
+      }
+      // Customer memory
+      if (/\b(memory|customer memory|customer profile|profile)\b/i.test(stripped)) {
+        return { type: 'NAVIGATION_COMMAND', targetPath: '/customer-memory', targetName: 'Customer Intelligence & Memory' }
+      }
+      // Orders
+      if (/\b(order|orders|lifecycle|order lifecycle|tracking)\b/i.test(stripped)) {
+        return { type: 'NAVIGATION_COMMAND', targetPath: '/order-lifecycle', targetName: 'Order Lifecycle' }
+      }
+      // Proactive
+      if (/\b(proactive|intelligence|proactive intel|delay|delay alerts)\b/i.test(stripped)) {
+        return { type: 'NAVIGATION_COMMAND', targetPath: '/proactive-intelligence', targetName: 'Proactive Operational Intelligence' }
+      }
+      // Inventory
+      if (/\b(inventory|stock|warehouse|hubs)\b/i.test(stripped)) {
+        return { type: 'NAVIGATION_COMMAND', targetPath: '/inventory', targetName: 'Inventory Hub' }
+      }
+      // Policy
+      if (/\b(policy|policies|warranty rules)\b/i.test(stripped)) {
+        return { type: 'NAVIGATION_COMMAND', targetPath: '/policies', targetName: 'Resolution Policies' }
+      }
+      // Analytics
+      if (/\b(analytics|metrics|charts)\b/i.test(stripped)) {
+        return { type: 'NAVIGATION_COMMAND', targetPath: '/analytics', targetName: 'Analytics Dashboard' }
+      }
+      // Fulfillment
+      if (/\b(fulfillment|logistics|shipping)\b/i.test(stripped)) {
+        return { type: 'NAVIGATION_COMMAND', targetPath: '/fulfillment', targetName: 'Fulfillment Operations' }
+      }
+      // Imports
+      if (/\b(import|imports|csv)\b/i.test(stripped)) {
+        return { type: 'NAVIGATION_COMMAND', targetPath: '/imports', targetName: 'CSV Import Center' }
+      }
+      // Settings
+      if (/\b(settings|workspace|onboarding)\b/i.test(stripped)) {
+        return { type: 'NAVIGATION_COMMAND', targetPath: '/onboarding', targetName: 'Workspace Settings' }
+      }
     }
   }
 

@@ -312,11 +312,40 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
                   <span>Case status</span>
                   <strong>{label(caseDetail?.status)}</strong>
                 </div>
-                <div className="exec-fact" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                <div className="exec-fact" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
                   <span>Resolution summary</span>
-                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--ink)', lineHeight: 1.5 }}>
-                    {cleanSummary || 'Not yet recorded'}
-                  </p>
+                  {caseDetail?.status === 'escalated' ? (
+                    <div style={{
+                      backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      borderRadius: '8px',
+                      padding: '10px 12px',
+                      width: '100%',
+                      boxSizing: 'border-box'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                        <span style={{
+                          backgroundColor: '#ef4444',
+                          color: '#ffffff',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em'
+                        }}>
+                          Policy Exception / Escalated
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: '13px', color: '#991b1b', lineHeight: 1.5, fontWeight: 500 }}>
+                        {cleanSummary || 'Escalated to human supervisor review.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <p style={{ margin: 0, fontSize: '13px', color: 'var(--ink)', lineHeight: 1.5 }}>
+                      {cleanSummary || 'Not yet recorded'}
+                    </p>
+                  )}
                 </div>
 
                 {/* Post-Resolution Actionable Options */}

@@ -153,7 +153,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
     <div className="fl-nav-scrim" onClick={() => setMobileOpen(false)} aria-hidden="true"/>
     <aside className="fl-sidebar">
       <div className="fl-sidebar-head">
-        <Link href="/dashboard" className="fl-logo" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
+        <Link href="/" className="fl-logo" title="Go to ResolveAI landing page" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
           <Image src="/logo.png" alt="ResolveAI Logo" width={28} height={28} style={{ borderRadius: 6, objectFit: 'contain' }} priority />
           <span className="fl-logo-text">ResolveAI</span>
         </Link>

@@ -117,3 +117,27 @@ def test_t10_offline_honest_limitations_reporting():
         )
         assert "operating in verified local database mode" in res
         assert "external reasoning LLM is unreachable" in res
+
+
+def test_t11_navigation_intent_replies():
+    """Verify Chutku handles 'go to home page' and 'open dashboard' navigation intents."""
+    with Session(engine) as session:
+        res_home = process_chutku_query("go to home page", session=session, auth_customer_id="CUST-001")
+        assert "Landing Page" in res_home or "Home" in res_home
+        assert "external reasoning LLM is unreachable" not in res_home
+
+        res_dash = process_chutku_query("open dashboard", session=session, auth_customer_id="CUST-001")
+        assert "Dashboard" in res_dash
+        assert "external reasoning LLM is unreachable" not in res_dash
+
+
+def test_t12_filtered_cases_inquiries():
+    """Verify Chutku distinguishes between all cases, pending cases, and solved cases."""
+    with Session(engine) as session:
+        res_pending = process_chutku_query("total cases pending", session=session, auth_customer_id="CUST-001")
+        assert "pending" in res_pending.lower()
+        assert "external reasoning LLM is unreachable" not in res_pending
+
+        res_solved = process_chutku_query("cases solved", session=session, auth_customer_id="CUST-001")
+        assert "resolved" in res_solved.lower() or "solved" in res_solved.lower()
+        assert "external reasoning LLM is unreachable" not in res_solved

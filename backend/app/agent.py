@@ -176,12 +176,15 @@ def _observe(session: Session, case_id: str, execution_id: str, seq_counter: lis
         else:
             reasons = []
             if not status_ok:
-                reasons.append(f"status_ok=False (status '{order.status}' not in {requires_status})")
+                reasons.append(f"Order status '{order.status}' does not satisfy policy requirement (requires: {', '.join(requires_status)})")
             if not issue_ok:
-                reasons.append(f"issue_ok=False (issue '{order.issue_type}' not in {rules.get('allowed_issue_types')})")
+                reasons.append(f"Reported issue '{order.issue_type or effective_issue}' is not covered by allowed types ({', '.join(rules.get('allowed_issue_types', []))})")
             if not days_ok:
-                reasons.append(f"days_ok=False ({days_since_delivery} days since delivery exceeds {rules.get('max_days_since_delivery')} days limit)")
-            eligibility_reason = f"Not eligible: " + ", ".join(reasons)
+                if days_since_delivery is None:
+                    reasons.append(f"Order delivery date is unrecorded in carrier tracking (policy requires verified delivery within {rules.get('max_days_since_delivery')} days)")
+                else:
+                    reasons.append(f"Delivered {days_since_delivery} days ago, exceeding policy limit of {rules.get('max_days_since_delivery')} days")
+            eligibility_reason = f"Policy {policy.id} ({policy.category}) requirement not met: " + "; ".join(reasons)
         policy_data = {
             "id": policy.id,
             "policy_text": policy.policy_text,
@@ -576,17 +579,34 @@ def run_agent(case_id: str) -> dict:
             ctx = _observe(session, case_id, execution_id, seq_counter)
 
             if not ctx.get("eligible"):
-                # Not eligible -- escalate without LLM
+                pol = ctx.get("policy") or {}
+                pol_id = pol.get("id", "POL-UNKNOWN")
+                pol_cat = pol.get("category", "") or "General Policy"
+                eligibility_reason = pol.get("eligibility_reason", "Eligibility criteria not met.")
+                escalation_summary = f"Escalated per Policy {pol_id}: {eligibility_reason}"
+
                 _log_event(
                     session, case_id, execution_id, "agent_decision",
                     EventType.decision, EventStatus.ESCALATED,
-                    "Case not eligible for resolution based on policy rules. Escalating.",
-                    None, None, seq()
+                    escalation_summary,
+                    {"policy_id": pol_id, "policy_rules": pol.get("eligibility_rules")},
+                    {"eligibility_reason": eligibility_reason, "policy": pol},
+                    seq()
                 )
                 case = session.get(SupportCase, case_id)
                 if case:
                     case.status = "escalated"
-                    case.resolution_summary = "Not eligible per policy -- escalated."
+                    case.resolution_summary = json.dumps({
+                        "summary": escalation_summary,
+                        "policy_id": pol_id,
+                        "policy_category": pol_cat,
+                        "eligibility_reason": eligibility_reason,
+                        "actionable_options": [
+                            {"id": 1, "label": "Wait for Carrier Delivery", "description": "Re-evaluate autonomously once delivery checkpoint is confirmed by courier.", "action_type": "tracking"},
+                            {"id": 2, "label": "Supervisor Override (POL-OVR-01)", "description": "Authorize priority exception before delivery confirmation.", "action_type": "escalate"},
+                            {"id": 3, "label": "Contact Customer", "description": "Notify customer regarding in-transit delivery status and warranty timeline.", "action_type": "email"}
+                        ]
+                    })
                     case.updated_at = _now()
                     session.add(case)
                 execution.status = "escalated"
@@ -594,7 +614,7 @@ def run_agent(case_id: str) -> dict:
                 execution.total_turns = 1
                 session.add(execution)
                 session.commit()
-                return {"status": "escalated", "case_id": case_id}
+                return {"status": "escalated", "case_id": case_id, "reason": escalation_summary}
 
             # ── PHASE 2: LLM CALL #1 -- PLAN ───────────────────────────────────
             _log_event(
