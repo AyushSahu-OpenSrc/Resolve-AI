@@ -45,28 +45,47 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS
-ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv(
-        "ALLOWED_ORIGINS",
-        "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000"
-    ).split(",")
-    if origin.strip()
+# CORS configuration with comprehensive production & local origin support
+default_origins = [
+    "https://resolveai-frontend-ffab.onrender.com",
+    "https://resolveai-frontend.onrender.com",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
 ]
+env_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+ALLOWED_ORIGINS = list(dict.fromkeys(default_origins + env_origins))
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"^https://.*\.onrender\.com$",
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["Content-Type", "Content-Length", "X-Accel-Buffering"],
+    max_age=600,
 )
 
 
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
+
+
+@app.get("/", tags=["health"])
+def root():
+    """Root status endpoint returning service info and documentation links."""
+    return {
+        "status": "online",
+        "service": "ResolveAI API Backend",
+        "version": "1.0.0",
+        "health_url": "/api/health",
+        "docs_url": "/docs",
+        "openapi_url": "/openapi.json",
+        "description": "Autonomous customer resolution agentic AI backend",
+    }
 
 
 # ─── Request/Response Models ──────────────────────────────────────────────────

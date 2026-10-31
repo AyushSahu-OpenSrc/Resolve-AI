@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type ComponentType, type SVGProps } from 'react'
+import { useCallback, useEffect, useState, type ComponentType, type SVGProps } from 'react'
 import Link from 'next/link'
 import { useUser } from '@clerk/nextjs'
 import { NavShell, toneFor } from '@/components/NavShell'
@@ -33,31 +33,83 @@ function StatCard({ label, value, decimals = 0, suffix = '', note, tone, help, l
   const shown = useCountUp(value, !loading)
   return <article className="fl-stat fl-rise" style={{ ['--d' as string]: 0.18 + index * 0.07 + 's' }}>
     <div className="fl-stat-inner">
-      <span className="fl-stat-icon"><Icon/></span>
+      <span className="fl-stat-icon"><Icon /></span>
       <div><small>{label}</small>
-        {loading ? <span className="fl-skel" style={{ width: 64, height: 22, marginTop: 6 }}/> :
+        {loading ? <span className="fl-skel" style={{ width: 64, height: 22, marginTop: 6 }} /> :
           <strong>{shown.toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}{suffix}</strong>}
       </div>
     </div>
     <footer className={'fl-stat-foot ' + tone}>
-      <span className="fl-dot-ring"/>{loading ? 'Loading…' : note}
-      <span className="fl-help" title={help} aria-label={help}><IconInfo/></span>
+      <span className="fl-dot-ring" />{loading ? 'Loading…' : note}
+      <span className="fl-help" title={help} aria-label={help}><IconInfo /></span>
     </footer>
   </article>
 }
 
 export default function DashboardPage() {
   const { isLoaded, isSignedIn, user } = useUser()
-  const [cases, setCases] = useState<CaseRow[]>([]), [customers, setCustomers] = useState<Row[]>([]), [orders, setOrders] = useState<Row[]>([]), [inventory, setInventory] = useState<Row[]>([]), [policies, setPolicies] = useState<Row[]>([])
-  const [loading, setLoading] = useState(true), [error, setError] = useState(''), [now, setNow] = useState(0)
-  useEffect(() => {
+  const [cases, setCases] = useState<CaseRow[]>([])
+  const [customers, setCustomers] = useState<Row[]>([])
+  const [orders, setOrders] = useState<Row[]>([])
+  const [inventory, setInventory] = useState<Row[]>([])
+  const [policies, setPolicies] = useState<Row[]>([])
+  const [loading, setLoading] = useState(true)
+  const [now, setNow] = useState(0)
+
+  // Granular section-level states & cold start detection
+  const [failures, setFailures] = useState<Record<string, string>>({})
+  const [isWakingBackend, setIsWakingBackend] = useState(false)
+  const [coldStartRetries, setColdStartRetries] = useState(0)
+
+  const loadData = useCallback(async () => {
     if (!isLoaded || !isSignedIn) return
-    let active = true
-    Promise.all([api.getCases(), api.getCustomers(), api.getOrders(), api.getInventory(), api.getPolicies()])
-      .then(([c, cu, o, i, p]) => { if (!active) return; setNow(Date.now()); setCases(c); setCustomers(cu); setOrders(o); setInventory(i); setPolicies(p) })
-      .catch(e => { if (active) setError(e instanceof Error ? e.message : 'The workspace API could not be reached.') })
-      .finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
+    setLoading(true)
+    const errMap: Record<string, string> = {}
+
+    const results = await Promise.allSettled([
+      api.getCases(),
+      api.getCustomers(),
+      api.getOrders(),
+      api.getInventory(),
+      api.getPolicies(),
+    ])
+
+    setNow(Date.now())
+
+    if (results[0].status === 'fulfilled') setCases(results[0].value)
+    else errMap['Cases'] = results[0].reason instanceof Error ? results[0].reason.message : 'Failed to load cases'
+
+    if (results[1].status === 'fulfilled') setCustomers(results[1].value)
+    else errMap['Customers'] = results[1].reason instanceof Error ? results[1].reason.message : 'Failed to load customers'
+
+    if (results[2].status === 'fulfilled') setOrders(results[2].value)
+    else errMap['Orders'] = results[2].reason instanceof Error ? results[2].reason.message : 'Failed to load orders'
+
+    if (results[3].status === 'fulfilled') setInventory(results[3].value)
+    else errMap['Inventory'] = results[3].reason instanceof Error ? results[3].reason.message : 'Failed to load inventory'
+
+    if (results[4].status === 'fulfilled') setPolicies(results[4].value)
+    else errMap['Policies'] = results[4].reason instanceof Error ? results[4].reason.message : 'Failed to load policies'
+
+    setFailures(errMap)
+    setLoading(false)
+
+    // Check if failure is due to cold start timeout
+    const isCold = Object.values(errMap).some((msg) => msg.includes('timed out') || msg.includes('cold start'))
+    if (isCold && coldStartRetries < 3) {
+      setIsWakingBackend(true)
+      const nextDelay = (coldStartRetries + 1) * 3500
+      setTimeout(() => {
+        setColdStartRetries((c) => c + 1)
+        loadData()
+      }, nextDelay)
+    } else {
+      setIsWakingBackend(false)
+    }
+  }, [isLoaded, isSignedIn, coldStartRetries])
+
+  useEffect(() => {
+    loadData()
   }, [isLoaded, isSignedIn])
 
   const open = cases.filter(c => !DONE.includes(lower(c.status)))
@@ -78,6 +130,8 @@ export default function DashboardPage() {
   const firstName = user?.firstName || 'there'
   const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
 
+  const failureKeys = Object.keys(failures)
+
   return <NavShell><main className="fl-page fl-dash">
     <header className="fl-page-head fl-rise" style={{ ['--d' as string]: '0.05s' }}>
       <div><h1>Welcome Back, {firstName}!</h1><p>Resolve customer issues with an agent that follows your policies.</p></div>
@@ -85,18 +139,37 @@ export default function DashboardPage() {
         <Link href="/imports" className="fl-btn sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
           <IconUpload size={14} /> Import CSV Datasets
         </Link>
-        <span className="fl-pill"><IconCalendar/>{today}</span>
-        <Link href="/cases/new" className="fl-btn primary"><IconPlus/>Open a case</Link>
+        <span className="fl-pill"><IconCalendar />{today}</span>
+        <Link href="/cases/new" className="fl-btn primary"><IconPlus />Open a case</Link>
       </div>
     </header>
 
-    {error && <div className="fl-banner error fl-rise"><IconAlert/><span><b>Can’t reach the workspace API.</b> {error} Counts below may be incomplete.</span><button className="fl-btn" onClick={() => location.reload()}><IconRefresh/>Retry</button></div>}
+    {isWakingBackend && (
+      <div className="fl-banner info fl-rise">
+        <IconRefresh />
+        <span>
+          <b>Connecting to ResolveAI services…</b> The cloud backend is waking up from inactivity. Retrying automatically.
+        </span>
+      </div>
+    )}
+
+    {failureKeys.length > 0 && !isWakingBackend && (
+      <div className="fl-banner error fl-rise">
+        <IconAlert />
+        <span>
+          <b>Unable to reach some workspace services:</b> {failureKeys.map(k => `${k} (${failures[k]})`).join(' · ')}
+        </span>
+        <button className="fl-btn" onClick={() => loadData()}>
+          <IconRefresh /> Retry
+        </button>
+      </div>
+    )}
 
     <section className="fl-stats">
-      <StatCard index={0} icon={IconCases} label="Open cases" value={open.length} loading={loading} tone="up" note={'+' + openedThisWeek + ' opened in the last 7 days'} help="Cases not yet resolved, verified or completed"/>
-      <StatCard index={1} icon={IconTrendUp} label="Resolution rate" value={rate} decimals={1} suffix="%" loading={loading} tone="up" note={resolved.length + ' of ' + cases.length + ' cases resolved'} help="Share of all cases the backend reports as resolved"/>
-      <StatCard index={2} icon={IconUsers} label="Customers" value={customers.length} loading={loading} tone="up" note={orders.length + ' orders linked'} help="Customer records imported into this workspace"/>
-      <StatCard index={3} icon={IconAlert} label="Attention flags" value={needsAttention.length} loading={loading} tone={needsAttention.length ? 'down' : 'up'} note={needsAttention.length ? 'Blocked or escalated' : 'Nothing blocked'} help="Cases marked failed, blocked or escalated"/>
+      <StatCard index={0} icon={IconCases} label="Open cases" value={open.length} loading={loading} tone="up" note={'+' + openedThisWeek + ' opened in the last 7 days'} help="Cases not yet resolved, verified or completed" />
+      <StatCard index={1} icon={IconTrendUp} label="Resolution rate" value={rate} decimals={1} suffix="%" loading={loading} tone="up" note={resolved.length + ' of ' + cases.length + ' cases resolved'} help="Share of all cases the backend reports as resolved" />
+      <StatCard index={2} icon={IconUsers} label="Customers" value={customers.length} loading={loading} tone="up" note={orders.length + ' orders linked'} help="Customer records imported into this workspace" />
+      <StatCard index={3} icon={IconAlert} label="Attention flags" value={needsAttention.length} loading={loading} tone={needsAttention.length ? 'down' : 'up'} note={needsAttention.length ? 'Blocked or escalated' : 'Nothing blocked'} help="Cases marked failed, blocked or escalated" />
     </section>
 
     {/* 3 Operational Hub Banners */}
@@ -153,45 +226,45 @@ export default function DashboardPage() {
     <section className="fl-card fl-table-card fl-rise" style={{ ['--d' as string]: '0.5s' }}>
       <div className="fl-card-head"><h2>Recent cases</h2><Link href="/cases" className="fl-link">View All</Link></div>
       {!loading && latest.length === 0 ? <div className="fl-empty">
-        <span className="fl-empty-icon"><IconCases/></span><h3>No cases yet</h3>
+        <span className="fl-empty-icon"><IconCases /></span><h3>No cases yet</h3>
         <p>Open a case to give ResolveAI a real customer issue to investigate.</p>
-        <Link href="/cases/new" className="fl-btn primary"><IconPlus/>Open a case</Link>
+        <Link href="/cases/new" className="fl-btn primary"><IconPlus />Open a case</Link>
       </div> : <div className="fl-table-wrap"><table className="fl-table">
         <thead><tr><th>Case</th><th>Customer</th><th>Order</th><th>Issue</th><th>Opened</th><th>Status</th><th>Action</th></tr></thead>
-        <tbody>{loading ? [0, 1, 2, 3].map(i => <tr key={i} className="fl-skel-row"><td colSpan={7}><span className="fl-skel" style={{ width: (88 - i * 9) + '%' }}/></td></tr>) :
+        <tbody>{loading ? [0, 1, 2, 3].map(i => <tr key={i} className="fl-skel-row"><td colSpan={7}><span className="fl-skel" style={{ width: (88 - i * 9) + '%' }} /></td></tr>) :
           latest.map((c, i) => <tr key={c.id} className="fl-row-in" style={{ ['--d' as string]: 0.62 + i * 0.05 + 's' }}>
             <td><span className="fl-name-cell"><span className={'fl-square tone-' + toneFor(c.customer_name || c.customer_id)}>{(c.customer_name || c.customer_id || 'C').slice(0, 1)}</span><Link href={'/cases/' + c.id}>{c.id}</Link></span></td>
             <td>{c.customer_name || c.customer_id}</td>
             <td className="fl-muted">{c.order_id}</td>
             <td><span className="fl-truncate">{c.customer_message || 'No issue summary'}</span></td>
-            <td><span className="fl-time"><IconClock/>{ago(c.created_at, now)}</span></td>
+            <td><span className="fl-time"><IconClock />{ago(c.created_at, now)}</span></td>
             <td><span className={'fl-status ' + statusKind(c.status)}>{nice(c.status)}</span></td>
             <td><span className="fl-row-actions"><Link href={'/cases/' + c.id}>View</Link><Link href="/agent-runs">Trace</Link></span></td>
           </tr>)}
         </tbody></table></div>}
-      <div className="fl-hatch" aria-hidden="true"/>
+      <div className="fl-hatch" aria-hidden="true" />
     </section>
 
     <section className="fl-dash-lower">
       <article className="fl-card fl-rise" style={{ ['--d' as string]: '0.66s' }}>
         <div className="fl-card-head"><h2>Workspace readiness</h2><span className="fl-count">{loading ? '—' : configured}<small>/4</small></span></div>
-        <div className="fl-meter"><span style={{ width: (loading ? 0 : configured / 4 * 100) + '%' }}/></div>
+        <div className="fl-meter"><span style={{ width: (loading ? 0 : configured / 4 * 100) + '%' }} /></div>
         <ul className="fl-list">{readiness.map(r => <li key={r.label}><Link href={r.href}>
-          <span className={'fl-check' + (r.count > 0 ? ' ok' : '')}/>{r.label}<b>{loading ? '—' : r.count}</b></Link></li>)}</ul>
+          <span className={'fl-check' + (r.count > 0 ? ' ok' : '')} />{r.label}<b>{loading ? '—' : r.count}</b></Link></li>)}</ul>
       </article>
       <article className="fl-card fl-rise" style={{ ['--d' as string]: '0.72s' }}>
         <div className="fl-card-head"><h2>Needs attention</h2><Link href="/cases" className="fl-link">Review</Link></div>
         {needsAttention.length ? <ul className="fl-list">{needsAttention.slice(0, 4).map(c => <li key={c.id}><Link href={'/cases/' + c.id}>
-          <span className="fl-square tone-red sm"><IconAlert/></span><span className="fl-list-main">{c.id}<small>{c.customer_message}</small></span><span className="fl-status alert">{nice(c.status)}</span></Link></li>)}</ul>
+          <span className="fl-square tone-red sm"><IconAlert /></span><span className="fl-list-main">{c.id}<small>{c.customer_message}</small></span><span className="fl-status alert">{nice(c.status)}</span></Link></li>)}</ul>
           : <p className="fl-quiet">{loading ? 'Checking case status…' : 'No failed, blocked or escalated cases right now.'}</p>}
       </article>
       <article className="fl-card fl-rise" style={{ ['--d' as string]: '0.78s' }}>
         <div className="fl-card-head"><h2>Inventory watch</h2><Link href="/explorer?tab=inventory" className="fl-link">Inspect</Link></div>
         {lowStock.length ? <ul className="fl-list">{lowStock.slice(0, 4).map((i, k) => <li key={String(i.id || i.product_id || k)}><div>
-          <span className="fl-square tone-amber sm"><IconBox/></span><span className="fl-list-main">{String(i.product_name || i.sku || i.product_id || 'Inventory item')}<small>{String(i.warehouse || '—')}</small></span><b className={available(i) <= 0 ? 'neg' : 'warn'}>{available(i)} left</b></div></li>)}</ul>
+          <span className="fl-square tone-amber sm"><IconBox /></span><span className="fl-list-main">{String(i.product_name || i.sku || i.product_id || 'Inventory item')}<small>{String(i.warehouse || '—')}</small></span><b className={available(i) <= 0 ? 'neg' : 'warn'}>{available(i)} left</b></div></li>)}</ul>
           : <p className="fl-quiet">{loading ? 'Checking stock…' : 'No items at five units or fewer.'}</p>}
       </article>
     </section>
-    <p className="fl-foot-note"><IconShield/>Counts come from your connected ResolveAI API. Nothing on this page is simulated.</p>
+    <p className="fl-foot-note"><IconShield />Counts come from your connected ResolveAI API. Nothing on this page is simulated.</p>
   </main></NavShell>
 }

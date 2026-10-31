@@ -169,17 +169,11 @@ export function ChutkuAssistantPanel({
       setIsSpeaking(true)
       setEmotion('speaking')
 
-      // Call FastAPI backend neural TTS endpoint
-      const response = await fetch('/api/chutku/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: clean,
-          voice,
-          language,
-          speed,
-          emotion: 'friendly',
-        }),
+      // Call FastAPI backend neural TTS endpoint via centralized api client
+      const response = await api.generateTts({
+        text: clean,
+        voice_id: voice,
+        rate: speed === 1 ? '+0%' : speed > 1 ? `+${Math.round((speed - 1) * 100)}%` : `-${Math.round((1 - speed) * 100)}%`,
       })
 
       if (!response.ok) {
@@ -362,24 +356,35 @@ export function ChutkuAssistantPanel({
       } else if (qLower.includes('case-1042') || qLower.includes('1042')) {
         responseText = `Case CASE-1042 for Rahul Sharma reported outer box damage. Under warranty policy POL-DMG-01, replacement was permitted and 1 unit was allocated from Pune Hub.`
       } else {
-        // Fallback to backend chat endpoint
-        try {
-          const res = await fetch('http://localhost:8000/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              message: `Context: ResolveAI customer resolution SaaS. Current live DB: ${cases.length} cases (${resolvedCount} resolved, ${openCount} open), Mumbai stock: ${mumbaiStock}, Pune stock: ${puneStock}. User query: ${query}`,
-            }),
-          })
-          if (res.ok) {
-            const data = await res.json()
-            responseText = data.response || data.reply || data.text
-          }
-        } catch {}
+        // Stream response from centralized backend SSE chat endpoint
+        const aiMsgId = 'a-' + Date.now()
+        setMessages((prev) => [...prev, { id: aiMsgId, role: 'assistant', text: '' }])
+        let accumulatedText = ''
 
-        if (!responseText) {
-          responseText = `ResolveAI evaluates customer evidence, verifies inventory (${puneStock} units in Pune), and enforces policy without hallucination. What would you like to inspect next?`
-        }
+        await api.streamChat(
+          `Context: ResolveAI customer resolution SaaS. Current live DB: ${cases.length} cases (${resolvedCount} resolved, ${openCount} open), Mumbai stock: ${mumbaiStock}, Pune stock: ${puneStock}. User query: ${query}`,
+          {
+            onToken: (token: string) => {
+              accumulatedText += token
+              setMessages((prev) =>
+                prev.map((m) => (m.id === aiMsgId ? { ...m, text: accumulatedText } : m))
+              )
+            },
+            onDone: () => {
+              setEmotion('happy')
+              if (accumulatedText) speakText(accumulatedText)
+            },
+            onError: (err: string) => {
+              const fallback = `ResolveAI evaluates customer evidence, verifies inventory (${puneStock} units in Pune), and enforces policy without hallucination. What would you like to inspect next?`
+              setMessages((prev) =>
+                prev.map((m) => (m.id === aiMsgId ? { ...m, text: accumulatedText || fallback } : m))
+              )
+              setEmotion('happy')
+              speakText(accumulatedText || fallback)
+            },
+          }
+        )
+        return
       }
 
       setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: responseText }])
