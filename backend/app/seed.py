@@ -80,6 +80,12 @@ def seed():
                   delivery_date=now - timedelta(days=4),
                   issue_type="damaged_on_arrival",
                   total_amount=4999.00, quantity=1),
+            Order(id="ORD-1046", customer_id="CUST-004", product_id="PROD-HP01",
+                  status="delivered",
+                  purchase_date=now - timedelta(days=6),
+                  delivery_date=now - timedelta(days=2),
+                  issue_type="damaged_on_arrival",
+                  total_amount=4999.00, quantity=1),
             # Padding orders
             Order(id="ORD-1043", customer_id="CUST-001", product_id="PROD-HP01",
                   status="delivered",
@@ -222,16 +228,61 @@ def seed():
             session.add(pol)
         session.commit()
 
-        # ── Hero-path Support Case ─────────────────────────────────────────
-        hero_case = SupportCase(
-            id="CASE-DEMO-001",
-            customer_id="CUST-001",
-            order_id="ORD-1042",
-            customer_message="My order arrived damaged. I want a replacement.",
-            status="open",
-            demo_conflict_pending=True,
-        )
-        session.add(hero_case)
+        # ── Operational Cases ──────────────────────────────────────────────
+        cases = [
+            SupportCase(
+                id="CASE-1042",
+                customer_id="CUST-001",
+                order_id="ORD-1042",
+                customer_message="My headphones arrived damaged with cracked frame. Requesting priority replacement under warranty.",
+                status="open",
+                demo_conflict_pending=False,
+                created_at=now - timedelta(minutes=45),
+                updated_at=now - timedelta(minutes=45),
+            ),
+            SupportCase(
+                id="CASE-1046",
+                customer_id="CUST-004",
+                order_id="ORD-1046",
+                customer_message="UltraView Wireless Headphones arrived with shattered outer casing and damaged audio driver.",
+                status="open",
+                demo_conflict_pending=True,
+                created_at=now - timedelta(minutes=30),
+                updated_at=now - timedelta(minutes=30),
+            ),
+            SupportCase(
+                id="CASE-1044",
+                customer_id="CUST-002",
+                order_id="ORD-1050",
+                customer_message="Smart speaker has no sound from the left channel on initial setup.",
+                status="open",
+                demo_conflict_pending=False,
+                created_at=now - timedelta(hours=2),
+                updated_at=now - timedelta(hours=2),
+            ),
+            SupportCase(
+                id="CASE-1045",
+                customer_id="CUST-003",
+                order_id="ORD-1051",
+                customer_message="Mechanical keyboard switches broken upon delivery.",
+                status="open",
+                demo_conflict_pending=False,
+                created_at=now - timedelta(hours=4),
+                updated_at=now - timedelta(hours=4),
+            ),
+            SupportCase(
+                id="CASE-DEMO-001",
+                customer_id="CUST-001",
+                order_id="ORD-1042",
+                customer_message="My order arrived damaged. I want a replacement.",
+                status="open",
+                demo_conflict_pending=True,
+                created_at=now - timedelta(hours=5),
+                updated_at=now - timedelta(hours=5),
+            ),
+        ]
+        for c in cases:
+            session.add(c)
         session.commit()
 
         print("[OK] Database seeded successfully.")

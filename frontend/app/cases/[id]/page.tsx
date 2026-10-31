@@ -108,11 +108,15 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
     setBusy(true)
     setActionError('')
     try {
-      await api.resetDemo()
+      if (demo) {
+        await api.resetDemo()
+      } else {
+        await api.resetCase(id)
+      }
       resetState()
       await refetch()
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Demo reset failed')
+      setActionError(e instanceof Error ? e.message : 'Case reset failed')
     } finally {
       setBusy(false)
     }
@@ -188,9 +192,9 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
               <button className="exec-button" onClick={() => refetch()} disabled={busy}>
                 Refresh state
               </button>
-              {demo && (
-                <button className="exec-button" onClick={reset} disabled={busy}>
-                  Reset demo
+              {(demo || done || caseDetail?.status === 'resolved' || caseDetail?.status === 'escalated') && (
+                <button className="exec-button" onClick={reset} disabled={busy || isRunning}>
+                  Reset & Re-run
                 </button>
               )}
               <button className="exec-button primary" onClick={run} disabled={busy || isRunning || done}>

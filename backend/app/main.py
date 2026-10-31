@@ -72,6 +72,25 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
+    try:
+        with Session(engine) as session:
+            existing_case = session.exec(select(SupportCase)).first()
+            if not existing_case:
+                logger.info("Database has no support cases. Auto-seeding initial operational data...")
+                seed_module.seed()
+    except Exception as e:
+        logger.exception("Failed during auto-seed check: %s", e)
+
+
+@app.post("/api/seed", tags=["admin"])
+def seed_database():
+    """Manual re-seed endpoint to populate initial operational dataset."""
+    try:
+        seed_module.seed()
+        return {"status": "success", "message": "Database successfully seeded with standard operational data."}
+    except Exception as e:
+        logger.exception("Failed to seed database: %s", e)
+        raise HTTPException(500, f"Failed to seed database: {e}")
 
 
 @app.get("/", tags=["health"])
@@ -669,7 +688,7 @@ def start_resolution(
     """Start the agent resolution loop in the background."""
     case = session.get(SupportCase, case_id)
     if not case:
-        raise HTTPException(404, "Case not found")
+        raise HTTPException(404, f"Case {case_id} not found in database")
 
     if case.status in ("resolved", "escalated"):
         raise HTTPException(400, f"Case already in terminal state: {case.status}")
@@ -942,9 +961,29 @@ def reset_case(session: Session, case_id: str):
             demo_conflict_pending=True,
         )
         session.add(case)
+    elif not case and case_id == "CASE-1042":
+        case = SupportCase(
+            id="CASE-1042",
+            customer_id="CUST-001",
+            order_id="ORD-1042",
+            customer_message="My headphones arrived damaged with cracked frame. Requesting priority replacement under warranty.",
+            status="open",
+            demo_conflict_pending=False,
+        )
+        session.add(case)
+    elif not case and case_id == "CASE-1046":
+        case = SupportCase(
+            id="CASE-1046",
+            customer_id="CUST-004",
+            order_id="ORD-1046",
+            customer_message="UltraView Wireless Headphones arrived with shattered outer casing and damaged audio driver.",
+            status="open",
+            demo_conflict_pending=True,
+        )
+        session.add(case)
     elif case:
         case.status = "open"
-        if case_id == "CASE-DEMO-001":
+        if case_id in ("CASE-DEMO-001", "CASE-1046"):
             case.demo_conflict_pending = True
         case.resolution_summary = None
         case.resolved_at = None
@@ -957,8 +996,8 @@ def reset_case(session: Session, case_id: str):
             order.status = "delivered"
             session.add(order)
 
-    # Demo-specific inventory restore
-    if case_id == "CASE-DEMO-001":
+    # Inventory restore for test cases
+    if case_id in ("CASE-DEMO-001", "CASE-1042", "CASE-1046"):
         inv_resets = [
             ("INV-001", "Mumbai", 1, 0),
             ("INV-002", "Pune", 2, 0),
@@ -975,6 +1014,17 @@ def reset_case(session: Session, case_id: str):
     # Clear running agent tracker
     with _agent_lock:
         _running_agents.discard(case_id)
+
+
+@app.post("/api/cases/{case_id}/reset")
+def reset_case_endpoint(case_id: str, session: Session = Depends(get_session)):
+    """Reset any case to open state and clear events/replacements for re-running."""
+    case = session.get(SupportCase, case_id)
+    if not case:
+        raise HTTPException(404, f"Case {case_id} not found in database")
+    reset_case(session, case_id)
+    session.commit()
+    return {"status": "reset_complete", "case_id": case_id}
 
 
 @app.post("/api/demo/reset")

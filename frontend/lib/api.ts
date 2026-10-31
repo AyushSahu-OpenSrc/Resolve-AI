@@ -83,7 +83,7 @@ function categorizeHttpError(status: number, body: string, endpoint: string, bac
   }
 
   if (status === 404) {
-    return new ApiError(`Endpoint not found: ${endpoint}`, 'NOT_FOUND', endpoint, backendUrl, status)
+    return new ApiError(message || `Resource not found: ${endpoint}`, 'NOT_FOUND', endpoint, backendUrl, status)
   }
   if (status === 401) {
     return new ApiError('Authentication required to access workspace API.', 'AUTH_REQUIRED', endpoint, backendUrl, status)
@@ -222,6 +222,8 @@ export const api = {
     apiFetch('/api/cases', { method: 'POST', body: JSON.stringify(data) }),
   resolveCase: (id: string) =>
     apiFetch(`/api/cases/${id}/resolve`, { method: 'POST' }),
+  resetCase: (id: string) =>
+    apiFetch(`/api/cases/${id}/reset`, { method: 'POST' }),
 
   // Events (polling with backoff support)
   getCaseEvents: (id: string, since?: string) =>
