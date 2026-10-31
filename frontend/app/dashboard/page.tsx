@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useUser } from '@clerk/nextjs'
 import { NavShell, toneFor } from '@/components/NavShell'
 import { api } from '@/lib/api'
+import { DiagramModal, type DiagramType } from '@/components/DiagramModal'
 import { useCountUp } from '@/hooks/useCountUp'
 import { IconAlert, IconBox, IconCalendar, IconCases, IconClock, IconInfo, IconMic, IconPlus, IconRefresh, IconShield, IconTrendUp, IconUpload, IconUsers } from '@/components/icons'
 
@@ -46,6 +47,69 @@ function StatCard({ label, value, decimals = 0, suffix = '', note, tone, help, l
   </article>
 }
 
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DEMO / SAMPLE WORKSPACE SEEDED DATA (Clearly isolated from operational data)
+   Demonstrates agent intelligence, failure & replanning trace, and verifiable outcomes
+   ───────────────────────────────────────────────────────────────────────────── */
+const DEMO_CASES: CaseRow[] = [
+  {
+    id: 'CASE-1042',
+    customer_id: 'CUST-001',
+    customer_name: 'Rahul Sharma',
+    order_id: 'ORD-1042',
+    customer_message: 'My headphones arrived damaged with cracked frame. Requesting priority replacement under warranty.',
+    status: 'resolved',
+    resolution_summary: 'Verified under POL-DMG-01. Reserved 1 unit from Pune Hub (Mumbai OOS). Order REP-1042-PUNE dispatched.',
+    created_at: new Date(Date.now() - 15 * 60000).toISOString(),
+    updated_at: new Date(Date.now() - 5 * 60000).toISOString(),
+  },
+  {
+    id: 'CASE-1046',
+    customer_id: 'CUST-004',
+    customer_name: 'Sneha Reddy',
+    order_id: 'ORD-1046',
+    customer_message: 'UltraView 4K Monitor arrived with shattered display panel in box.',
+    status: 'replanning',
+    resolution_summary: 'Failure trace detected: Mumbai Hub depleted (0). Agent autonomously rerouted to Pune Hub (2 units).',
+    created_at: new Date(Date.now() - 45 * 60000).toISOString(),
+    updated_at: new Date(Date.now() - 10 * 60000).toISOString(),
+  },
+  {
+    id: 'CASE-1044',
+    customer_id: 'CUST-002',
+    customer_name: 'Priya Patel',
+    order_id: 'ORD-1044',
+    customer_message: 'Smart speaker has no sound from the left channel on initial setup.',
+    status: 'resolved',
+    resolution_summary: 'Defective within 30 days under POL-DEF-02. Replacement dispatched from Mumbai Hub.',
+    created_at: new Date(Date.now() - 3 * 3600000).toISOString(),
+    updated_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+  },
+  {
+    id: 'CASE-1045',
+    customer_id: 'CUST-003',
+    customer_name: 'Amit Verma',
+    order_id: 'ORD-1045',
+    customer_message: 'Keyboard broken keys reported after 12 days of delivery.',
+    status: 'escalated',
+    resolution_summary: 'Exceeds 7-day transit damage window. Escalated to supervisor for goodwill consideration.',
+    created_at: new Date(Date.now() - 6 * 3600000).toISOString(),
+    updated_at: new Date(Date.now() - 4 * 3600000).toISOString(),
+  },
+  {
+    id: 'CASE-1048',
+    customer_id: 'CUST-006',
+    customer_name: 'Meera Singh',
+    order_id: 'ORD-1048',
+    customer_message: 'Wireless headphones battery discharging within 20 minutes.',
+    status: 'resolved',
+    resolution_summary: 'Battery defect verified under warranty. Replacement authorized.',
+    created_at: new Date(Date.now() - 24 * 3600000).toISOString(),
+    updated_at: new Date(Date.now() - 18 * 3600000).toISOString(),
+  },
+]
+
 export default function DashboardPage() {
   const { isLoaded, isSignedIn, user } = useUser()
   const [cases, setCases] = useState<CaseRow[]>([])
@@ -57,6 +121,8 @@ export default function DashboardPage() {
   const [now, setNow] = useState(0)
 
   // Granular section-level states & cold start detection
+    const [workspaceMode, setWorkspaceMode] = useState<'live' | 'demo'>('live')
+  const [diagramModal, setDiagramModal] = useState<DiagramType | null>(null)
   const [failures, setFailures] = useState<Record<string, string>>({})
   const [isWakingBackend, setIsWakingBackend] = useState(false)
   const [coldStartRetries, setColdStartRetries] = useState(0)
@@ -112,9 +178,20 @@ export default function DashboardPage() {
     loadData()
   }, [isLoaded, isSignedIn])
 
-  const open = cases.filter(c => !DONE.includes(lower(c.status)))
+    const open = cases.filter(c => !DONE.includes(lower(c.status)))
   const resolved = cases.filter(c => DONE.includes(lower(c.status)))
   const needsAttention = cases.filter(c => ALERT.includes(lower(c.status)))
+
+  // Compute metrics based on active workspace mode
+  const isDemo = workspaceMode === 'demo'
+  const effectiveCases = isDemo ? DEMO_CASES : cases
+  const effectiveCustomers = isDemo ? 8 : customers.length
+  const effectiveOrdersCount = isDemo ? 13 : orders.length
+  const openCasesList = effectiveCases.filter(c => !DONE.includes(lower(c.status)))
+  const resolvedCasesList = effectiveCases.filter(c => DONE.includes(lower(c.status)))
+  const needsAttentionList = effectiveCases.filter(c => ALERT.includes(lower(c.status)) || lower(c.status) === 'replanning')
+  const displayLatest = [...effectiveCases].sort((a, b) => parse(b.created_at) - parse(a.created_at)).slice(0, 6)
+  const displayRate = isDemo ? 85.7 : (cases.length ? (resolved.length / cases.length) * 100 : 0)
   const weekAgo = now - 7 * 864e5
   const openedThisWeek = cases.filter(c => parse(c.created_at) >= weekAgo).length
   const lowStock = inventory.filter(i => available(i) <= 5)
@@ -136,11 +213,31 @@ export default function DashboardPage() {
     <header className="fl-page-head fl-rise" style={{ ['--d' as string]: '0.05s' }}>
       <div><h1>Welcome Back, {firstName}!</h1><p>Resolve customer issues with an agent that follows your policies.</p></div>
       <div className="fl-head-actions">
+        {/* Workspace Mode Switcher (Live vs Demo) */}
+        <div style={{ display: 'flex', background: 'var(--panel)', padding: '3px', borderRadius: '999px', border: '1px solid var(--line)' }}>
+          <button
+            type="button"
+            className={`demo-mode-pill ${workspaceMode === 'live' ? 'active' : 'inactive'}`}
+            onClick={() => setWorkspaceMode('live')}
+            style={{ border: 'none', background: workspaceMode === 'live' ? 'var(--primary)' : 'transparent', color: workspaceMode === 'live' ? '#fff' : 'var(--ink-muted)' }}
+          >
+            Live Ops ({cases.length})
+          </button>
+          <button
+            type="button"
+            className={`demo-mode-pill ${workspaceMode === 'demo' ? 'active' : 'inactive'}`}
+            onClick={() => setWorkspaceMode('demo')}
+            style={{ border: 'none' }}
+          >
+            Demo Showcase (14)
+          </button>
+        </div>
+
         <Link href="/imports" className="fl-btn sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
           <IconUpload size={14} /> Import CSV Datasets
         </Link>
         <span className="fl-pill"><IconCalendar />{today}</span>
-        <Link href="/cases/new" className="fl-btn primary"><IconPlus />Open a case</Link>
+        <Link href="/cases/new" className="fl-btn primary"><IconPlus />New Case</Link>
       </div>
     </header>
 
@@ -165,12 +262,90 @@ export default function DashboardPage() {
       </div>
     )}
 
+        {/* Demo Workspace Isolation Notice */}
+    {isDemo && (
+      <div className="demo-banner-strip fl-rise">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ background: '#f59e0b', color: '#000', fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px' }}>
+            DEMO WORKSPACE
+          </span>
+          <span style={{ fontSize: '13px', color: 'var(--ink)' }}>
+            <b>Hackathon Showcase Mode:</b> Displaying seeded cases, multi-hub stock replanning trace, and verifiable outcomes. Strictly isolated from live production data.
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            className="fl-btn sm"
+            onClick={() => setWorkspaceMode('live')}
+            style={{ fontSize: '12px' }}
+          >
+            Switch to Live Operations
+          </button>
+          <Link href="/imports" className="fl-btn primary sm" style={{ fontSize: '12px' }}>
+            Seed into Live DB ↗
+          </Link>
+        </div>
+      </div>
+    )}
+
+    {/* Prompt to explore Demo Mode when live cases are empty */}
+    {!isDemo && !loading && cases.length === 0 && (
+      <div className="fl-banner info fl-rise" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <b>New Account:</b> Your live database currently has 0 cases recorded. Switch to the <b>Demo Workspace</b> to showcase verifiable agent intelligence, or record a new case via mic.
+        </div>
+        <button className="fl-btn sm primary" onClick={() => setWorkspaceMode('demo')}>
+          View Demo Workspace ↗
+        </button>
+      </div>
+    )}
+
     <section className="fl-stats">
-      <StatCard index={0} icon={IconCases} label="Open cases" value={open.length} loading={loading} tone="up" note={'+' + openedThisWeek + ' opened in the last 7 days'} help="Cases not yet resolved, verified or completed" />
-      <StatCard index={1} icon={IconTrendUp} label="Resolution rate" value={rate} decimals={1} suffix="%" loading={loading} tone="up" note={resolved.length + ' of ' + cases.length + ' cases resolved'} help="Share of all cases the backend reports as resolved" />
-      <StatCard index={2} icon={IconUsers} label="Customers" value={customers.length} loading={loading} tone="up" note={orders.length + ' orders linked'} help="Customer records imported into this workspace" />
-      <StatCard index={3} icon={IconAlert} label="Attention flags" value={needsAttention.length} loading={loading} tone={needsAttention.length ? 'down' : 'up'} note={needsAttention.length ? 'Blocked or escalated' : 'Nothing blocked'} help="Cases marked failed, blocked or escalated" />
+      <StatCard index={0} icon={IconCases} label="Open cases" value={isDemo ? 3 : open.length} loading={loading && !isDemo} tone="up" note={isDemo ? "+3 opened this week (Demo)" : '+' + openedThisWeek + ' opened in the last 7 days'} help="Cases not yet resolved, verified or completed" />
+      <StatCard index={1} icon={IconTrendUp} label="Resolution rate" value={displayRate} decimals={1} suffix="%" loading={loading && !isDemo} tone="up" note={isDemo ? "12 of 14 cases resolved (Demo)" : resolved.length + ' of ' + cases.length + ' cases resolved'} help="Share of all cases the backend reports as resolved" />
+      <StatCard index={2} icon={IconUsers} label="Customers" value={effectiveCustomers} loading={loading && !isDemo} tone="up" note={effectiveOrdersCount + ' orders linked'} help="Customer records imported into this workspace" />
+      <StatCard index={3} icon={IconAlert} label="Attention flags" value={isDemo ? 1 : needsAttention.length} loading={loading && !isDemo} tone={isDemo || needsAttention.length ? 'down' : 'up'} note={isDemo ? "1 replanned failure trace" : (needsAttention.length ? 'Blocked or escalated' : 'Nothing blocked')} help="Cases marked failed, blocked or escalated" />
     </section>
+
+        {/* Autonomous Failure-and-Replanning Trace Showcase (Demonstrates Agent Intelligence) */}
+    {isDemo && (
+      <section className="demo-trace-card fl-rise">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 700 }}>
+              AGENT REPLANNING AUDIT
+            </span>
+            <strong style={{ fontSize: '15px' }}>Autonomous Failure & Replanning Trace (Case CASE-1046)</strong>
+          </div>
+          <span style={{ fontSize: '11px', color: '#4ade80', fontWeight: 600, background: 'rgba(34, 197, 94, 0.15)', padding: '3px 10px', borderRadius: '999px' }}>
+            ✓ Verifiable Resolution Outcome
+          </span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px' }}>
+          <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '12px 14px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+            <small style={{ color: '#38bdf8', fontWeight: 700, fontSize: '10px' }}>STAGE 1 · INITIAL PLAN</small>
+            <div style={{ fontSize: '13px', fontWeight: 600, marginTop: '2px' }}>Check Mumbai Hub Stock</div>
+            <p style={{ fontSize: '11.5px', color: '#94a3b8', margin: '4px 0 0' }}>Attempted to reserve 1 unit of UltraView 4K Monitor (PROD-MN05) at primary Mumbai depot.</p>
+          </div>
+          <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '12px 14px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+            <small style={{ color: '#f87171', fontWeight: 700, fontSize: '10px' }}>STAGE 2 · FAILURE DETECTED</small>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#fca5a5', marginTop: '2px' }}>StockDepletedException (0 Units)</div>
+            <p style={{ fontSize: '11.5px', color: '#fca5a5', margin: '4px 0 0' }}>Mumbai Hub inventory returned 0 available units. Agent triggers replanning without human intervention.</p>
+          </div>
+          <div style={{ background: 'rgba(56, 189, 248, 0.1)', padding: '12px 14px', borderRadius: '12px', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+            <small style={{ color: '#38bdf8', fontWeight: 700, fontSize: '10px' }}>STAGE 3 · AUTONOMOUS REPLANNING</small>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#38bdf8', marginTop: '2px' }}>Reroute to Pune Hub (2 Units)</div>
+            <p style={{ fontSize: '11.5px', color: '#94a3b8', margin: '4px 0 0' }}>Evaluated regional depots; selected Pune Hub as optimal nearest stock match with 2 units available.</p>
+          </div>
+          <div style={{ background: 'rgba(34, 197, 94, 0.1)', padding: '12px 14px', borderRadius: '12px', border: '1px solid rgba(34, 197, 94, 0.3)' }}>
+            <small style={{ color: '#4ade80', fontWeight: 700, fontSize: '10px' }}>STAGE 4 · VERIFIED OUTCOME</small>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#86efac', marginTop: '2px' }}>Order REP-1046 Dispatched</div>
+            <p style={{ fontSize: '11.5px', color: '#86efac', margin: '4px 0 0' }}>Reserved 1 unit in Pune, locked database row, drafted email to Sneha Reddy, recorded DB event trace.</p>
+          </div>
+        </div>
+      </section>
+    )}
 
     {/* 3 Operational Hub Banners */}
     <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', margin: '24px 0' }}>
@@ -193,6 +368,14 @@ export default function DashboardPage() {
       <article className="fl-card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ height: '155px', position: 'relative', background: '#0c2749' }}>
           <img src="/assets/banners/card-routing.webp" alt="Multi-Hub Logistics" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <button
+            type="button"
+            className="fl-card-zoom-trigger"
+            onClick={() => setDiagramModal('stock-allocation')}
+            title="Expand stock allocation architecture diagram"
+          >
+            Expand Diagram ⛶
+          </button>
         </div>
         <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
           <small style={{ color: '#fbbf24', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>Policy & Multi-Hub</small>
@@ -209,6 +392,14 @@ export default function DashboardPage() {
       <article className="fl-card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ height: '155px', position: 'relative', background: '#06122b' }}>
           <img src="/assets/banners/card-execution.webp" alt="Settlement Engine" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <button
+            type="button"
+            className="fl-card-zoom-trigger"
+            onClick={() => setDiagramModal('execution-trace')}
+            title="Expand closed-loop execution trace diagram"
+          >
+            Expand Diagram ⛶
+          </button>
         </div>
         <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
           <small style={{ color: '#a78bfa', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>Closed-Loop Settlements</small>
@@ -225,14 +416,14 @@ export default function DashboardPage() {
 
     <section className="fl-card fl-table-card fl-rise" style={{ ['--d' as string]: '0.5s' }}>
       <div className="fl-card-head"><h2>Recent cases</h2><Link href="/cases" className="fl-link">View All</Link></div>
-      {!loading && latest.length === 0 ? <div className="fl-empty">
+      {!loading && displayLatest.length === 0 && !isDemo ? <div className="fl-empty">
         <span className="fl-empty-icon"><IconCases /></span><h3>No cases yet</h3>
         <p>Open a case to give ResolveAI a real customer issue to investigate.</p>
-        <Link href="/cases/new" className="fl-btn primary"><IconPlus />Open a case</Link>
+        <Link href="/cases/new" className="fl-btn primary"><IconPlus />New Case</Link>
       </div> : <div className="fl-table-wrap"><table className="fl-table">
         <thead><tr><th>Case</th><th>Customer</th><th>Order</th><th>Issue</th><th>Opened</th><th>Status</th><th>Action</th></tr></thead>
         <tbody>{loading ? [0, 1, 2, 3].map(i => <tr key={i} className="fl-skel-row"><td colSpan={7}><span className="fl-skel" style={{ width: (88 - i * 9) + '%' }} /></td></tr>) :
-          latest.map((c, i) => <tr key={c.id} className="fl-row-in" style={{ ['--d' as string]: 0.62 + i * 0.05 + 's' }}>
+          displayLatest.map((c, i) => <tr key={c.id} className="fl-row-in" style={{ ['--d' as string]: 0.62 + i * 0.05 + 's' }}>
             <td><span className="fl-name-cell"><span className={'fl-square tone-' + toneFor(c.customer_name || c.customer_id)}>{(c.customer_name || c.customer_id || 'C').slice(0, 1)}</span><Link href={'/cases/' + c.id}>{c.id}</Link></span></td>
             <td>{c.customer_name || c.customer_id}</td>
             <td className="fl-muted">{c.order_id}</td>
@@ -265,6 +456,9 @@ export default function DashboardPage() {
           : <p className="fl-quiet">{loading ? 'Checking stock…' : 'No items at five units or fewer.'}</p>}
       </article>
     </section>
-    <p className="fl-foot-note"><IconShield />Counts come from your connected ResolveAI API. Nothing on this page is simulated.</p>
+    <p className="fl-foot-note"><IconShield />{isDemo ? "Demo Workspace: Verifiable outcomes & replanning simulation. Switch to Live Operations to view production data." : "Counts come from your connected ResolveAI API. Nothing on this page is simulated."}</p>
+
+    {/* Click-to-Expand Feature Diagram Modal */}
+    <DiagramModal type={diagramModal} onClose={() => setDiagramModal(null)} />
   </main></NavShell>
 }

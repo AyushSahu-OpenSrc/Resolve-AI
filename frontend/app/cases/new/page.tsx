@@ -165,8 +165,8 @@ export default function NewCasePage() {
       <main className="ra-page ra-new-case">
         <header className="ra-page-heading">
           <div>
-            <div className="ra-eyebrow">Customer operations / New record</div>
-            <h1>Open a case</h1>
+            <div className="ra-eyebrow">Customer operations / New Case</div>
+            <h1>New Case</h1>
             <p>Link a customer to one of their orders, then give the agent a clear outcome to work toward.</p>
           </div>
           <Link href="/cases" className="ra-button">Back to cases</Link>

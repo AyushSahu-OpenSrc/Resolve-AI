@@ -30,6 +30,7 @@ import {
 } from '@/components/icons'
 import { useUser } from '@clerk/nextjs'
 import './qfit-home.css'
+import { DiagramModal, type DiagramType } from '@/components/DiagramModal'
 
 /* ─────────────────────────────────────────────────────────────────────────────
    ROUTES & NAVIGATION
@@ -47,8 +48,8 @@ const ROUTES = {
 } as const
 
 const NAV_LINKS = [
-  { label: 'Conflicts', href: ROUTES.cases },
-  { label: 'New Conflict (Mic)', href: ROUTES.newCase },
+  { label: 'Cases', href: ROUTES.cases },
+  { label: 'New Case', href: ROUTES.newCase },
   { label: 'Policies', href: ROUTES.policies },
   { label: 'Inventory', href: ROUTES.inventory },
   { label: 'Agent Runs', href: ROUTES.runs },
@@ -91,11 +92,11 @@ const SCENES: Scene[] = [
     body: 'ResolveAI is an autonomous customer resolution agent that ingests disputes via Speech Recognition Mic, chat, or CSV uploads. It inspects order manifests, cross-references warranty policies, and coordinates multi-warehouse inventory without fabricated data.',
     ctas: [
       { label: 'Launch Dashboard ↗', to: ROUTES.cases, kind: 'primary' },
-      { label: 'Record Conflict via Voice', to: ROUTES.newCase, kind: 'ghost' },
+      { label: 'Record via Mic', to: ROUTES.newCase, kind: 'ghost' },
     ],
     hotspots: [
       { label: 'Launch Resolution Dashboard', to: ROUTES.cases, box: [90, 440, 410, 506] },
-      { label: 'Record Conflict via Voice', to: ROUTES.newCase, box: [430, 440, 730, 506] },
+      { label: 'Record via Mic', to: ROUTES.newCase, box: [430, 440, 730, 506] },
       { label: 'Inspect Case 1042', to: ROUTES.cases, box: [1080, 90, 2010, 650] },
     ],
   },
@@ -374,6 +375,106 @@ function Nav({ overLight }: { overLight: boolean }) {
 /* ─────────────────────────────────────────────────────────────────────────────
    HERO SECTION — with Glass View Controller
    ───────────────────────────────────────────────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   INVESTIGATION TELEMETRY CARD (Vector glassmorphism HUD without overlapping)
+   ───────────────────────────────────────────────────────────────────────────── */
+function InvestigationTelemetryCard() {
+  return (
+    <Link href="/cases" className="qf-telemetry-card" aria-label="Inspect Case CASE-1042 Resolution Audit">
+      {/* Header */}
+      <div className="qf-telemetry-head">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{
+            background: 'linear-gradient(135deg, #2563eb, #38bdf8)',
+            color: '#fff',
+            fontWeight: 800,
+            fontSize: '11px',
+            padding: '3px 8px',
+            borderRadius: '6px',
+            fontFamily: 'var(--mono)',
+            letterSpacing: '0.04em',
+          }}>
+            CASE-1042
+          </span>
+          <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.75)', fontWeight: 600, letterSpacing: '0.04em' }}>
+            VERIFIED RESOLUTION AUDIT
+          </span>
+        </div>
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '5px',
+          background: 'rgba(34, 197, 94, 0.15)',
+          border: '1px solid rgba(34, 197, 94, 0.35)',
+          color: '#4ade80',
+          padding: '2px 8px',
+          borderRadius: '999px',
+          fontSize: '10px',
+          fontWeight: 700,
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', display: 'inline-block' }} />
+          ACTIVE RUN
+        </div>
+      </div>
+
+      {/* Subcard 1: Customer Identity & Record */}
+      <div className="qf-telemetry-subcard">
+        <span className="qf-telemetry-label">Customer Identity & Record</span>
+        <strong style={{ fontSize: '14.5px', color: '#fff', margin: 0 }}>Rahul Sharma</strong>
+        <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+          ID: CUST-001 · Tier: Enterprise Premium · LTV: ₹34,900
+        </span>
+      </div>
+
+      {/* Subcard 2: Order & Shipment Evidence */}
+      <div className="qf-telemetry-subcard">
+        <span className="qf-telemetry-label">Order & Shipment Evidence</span>
+        <strong style={{ fontSize: '13px', color: '#fff', margin: 0 }}>
+          Order: ORD-1042 · Headphones (PROD-HP01)
+        </strong>
+        <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+          Tracking: Bluedart BD-90412 · Delivered 2 days ago · Crushed Box
+        </span>
+      </div>
+
+      {/* Subcard 3: Speech Recognition (Mic Dictation) */}
+      <div className="qf-telemetry-subcard">
+        <span className="qf-telemetry-label">Speech Recognition (Mic Dictation)</span>
+        <p style={{ margin: '2px 0', fontSize: '12px', color: '#f1f5f9', fontStyle: 'italic' }}>
+          &ldquo;My order arrived damaged with cracked frame.&rdquo;
+        </p>
+        <div className="qf-waveform-bars" aria-hidden="true">
+          {[8, 14, 6, 18, 11, 20, 8, 13, 17, 10, 18, 13, 7, 11, 16, 9].map((h, idx) => (
+            <span
+              key={idx}
+              className="qf-waveform-bar"
+              style={{
+                height: `${h}px`,
+                animationDelay: `${idx * 0.08}s`,
+              }}
+            />
+          ))}
+        </div>
+        <span style={{ fontSize: '10.5px', color: '#38bdf8', fontFamily: 'var(--mono)' }}>
+          Signal: 44.1 kHz PCM · Transcription Confidence: 99.4%
+        </span>
+      </div>
+
+      {/* Subcard 4: Autonomous Verdict & Action Dispatch */}
+      <div className="qf-telemetry-subcard" style={{ borderLeft: '3px solid #34d399' }}>
+        <span className="qf-telemetry-label" style={{ color: '#4ade80' }}>Autonomous Verdict & Action Dispatch</span>
+        <strong style={{ fontSize: '12.5px', color: '#fff', margin: 0 }}>
+          Policy Verified: Replacement Permitted (POL-01)
+        </strong>
+        <span style={{ fontSize: '11px', color: '#86efac' }}>
+          Allocated Stock: Pune Hub (2 units) · Order REP-1042 · Dispatched
+        </span>
+      </div>
+    </Link>
+  )
+}
+
 function Hero({
   active,
   leaving,
@@ -446,6 +547,13 @@ function Hero({
                 draggable={false}
               />
             </picture>
+
+            {/* High-Resolution Vector Telemetry Card (Zero Text Overlapping) */}
+            {s.id === 'investigation' && (
+              <div className="qf-telemetry-overlay">
+                <InvestigationTelemetryCard />
+              </div>
+            )}
 
             {/* Clickable Hotspots overlaying buttons drawn on the banner */}
             {s.hotspots.map((h) => (
@@ -600,7 +708,7 @@ function PipelineSection() {
 /* ─────────────────────────────────────────────────────────────────────────────
    3-CARD FEATURE GALLERY (Using the 3 generated banners)
    ───────────────────────────────────────────────────────────────────────────── */
-function FeatureGallery() {
+function FeatureGallery({ onOpenDiagram }: { onOpenDiagram: (type: DiagramType) => void }) {
   return (
     <section className="qf-block qf-block--night" id="features">
       <div className="qf-wrap">
@@ -665,9 +773,26 @@ function FeatureGallery() {
               <p style={{ fontSize: '14px', color: 'rgb(255 255 255 / 0.7)', lineHeight: 1.6, margin: 0 }}>
                 When Mumbai Hub is depleted (0 units), the agent automatically reroutes to Pune Hub (2 units) without stalling customer fulfillment.
               </p>
-              <Link href={ROUTES.inventory} className="qf-link" style={{ marginTop: 'auto', paddingTop: '12px', color: '#818cf8' }}>
-                Inspect live inventory ↗
-              </Link>
+              <div style={{ marginTop: 'auto', paddingTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Link href={ROUTES.inventory} className="qf-link" style={{ color: '#818cf8' }}>
+                  Inspect live inventory ↗
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => onOpenDiagram('stock-allocation')}
+                  style={{
+                    fontSize: '12px',
+                    color: '#38bdf8',
+                    background: 'rgba(56, 189, 248, 0.1)',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Expand Diagram ⛶
+                </button>
+              </div>
             </div>
           </div>
 
@@ -693,9 +818,26 @@ function FeatureGallery() {
               <p style={{ fontSize: '14px', color: 'rgb(255 255 255 / 0.7)', lineHeight: 1.6, margin: 0 }}>
                 Automatic dispatch order generation, customer email drafts, and complete step-by-step reasoning logs stored for enterprise audits.
               </p>
-              <Link href={ROUTES.runs} className="qf-link" style={{ marginTop: 'auto', paddingTop: '12px', color: '#34d399' }}>
-                View agent runs ↗
-              </Link>
+              <div style={{ marginTop: 'auto', paddingTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Link href={ROUTES.runs} className="qf-link" style={{ color: '#34d399' }}>
+                  View agent runs ↗
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => onOpenDiagram('execution-trace')}
+                  style={{
+                    fontSize: '12px',
+                    color: '#34d399',
+                    background: 'rgba(52, 211, 153, 0.1)',
+                    border: '1px solid rgba(52, 211, 153, 0.3)',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Expand Diagram ⛶
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -727,7 +869,7 @@ function FinalCta() {
                 Launch Resolution Dashboard ↗
               </Link>
               <Link href={ROUTES.newCase} className="qf-btn qf-btn--glass qf-btn--lg">
-                Record Conflict via Mic
+                Record via Mic
               </Link>
             </div>
           </div>
@@ -743,6 +885,7 @@ function FinalCta() {
 export default function LandingPage() {
   const [active, setActive] = useState(0)
   const [leaving, setLeaving] = useState<number | null>(null)
+  const [diagramType, setDiagramType] = useState<DiagramType | null>(null)
 
   const selectScene = useCallback((i: number) => {
     if (i === active) return
@@ -778,13 +921,16 @@ export default function LandingPage() {
       </div>
 
       {/* 3-Card Feature Gallery using the 3 generated banners */}
-      <FeatureGallery />
+      <FeatureGallery onOpenDiagram={setDiagramType} />
 
       {/* 5-Step Interactive Architecture Stepper */}
       <PipelineSection />
 
       {/* Final Executive CTA */}
       <FinalCta />
+
+      {/* Click-to-Expand Feature Diagram Lightbox */}
+      <DiagramModal type={diagramType} onClose={() => setDiagramType(null)} />
     </div>
   )
 }

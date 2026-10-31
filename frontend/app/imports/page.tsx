@@ -23,19 +23,20 @@ const specs: Record<Dataset, Spec> = {
     sample: '/samples/customers.csv',
     icon: IconUsers,
   },
-  orders: {
-    title: 'Orders',
-    desc: 'Order manifests, customer linkage, purchased SKU, delivery dates, and amounts.',
-    headers: ['id', 'customer_id', 'product_id', 'status', 'total_amount', 'quantity', 'purchase_date', 'delivery_date', 'issue_type'],
-    sample: '/samples/orders.csv',
-    icon: IconOrder,
-  },
+  // Inventory comes before orders: it creates the products that orders refer to.
   inventory: {
     title: 'Inventory',
-    desc: 'SKU catalog and multi-warehouse physical stock levels (Mumbai, Pune, Bengaluru).',
+    desc: 'SKU catalog and multi-warehouse physical stock levels (Mumbai, Pune, Bengaluru). Import before orders.',
     headers: ['id', 'product_id', 'product_name', 'sku', 'category', 'price', 'warehouse', 'quantity', 'reserved_quantity'],
     sample: '/samples/inventory.csv',
     icon: IconBox,
+  },
+  orders: {
+    title: 'Orders',
+    desc: 'Order manifests, customer linkage, purchased SKU, delivery dates, and amounts. Needs customers and inventory first.',
+    headers: ['id', 'customer_id', 'product_id', 'status', 'total_amount', 'quantity', 'purchase_date', 'delivery_date', 'issue_type'],
+    sample: '/samples/orders.csv',
+    icon: IconOrder,
   },
   policies: {
     title: 'Policies',

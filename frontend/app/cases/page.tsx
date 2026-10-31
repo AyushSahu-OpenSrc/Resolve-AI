@@ -129,8 +129,8 @@ export default function CasesPage() {
       <div className="ra-page">
         <div className="ra-page-heading">
           <div>
-            <div className="ra-eyebrow">Customer operations / Case register</div>
-            <h1>Customer case register</h1>
+            <div className="ra-eyebrow">Customer operations / Cases</div>
+            <h1>Cases</h1>
             <p>Review customer issues, inspect their evidence and run the resolution agent when ready.</p>
           </div>
           <div className="ra-actions">
@@ -138,7 +138,7 @@ export default function CasesPage() {
               Refresh records
             </button>
             <Link href="/cases/new" className="ra-button primary">
-              New case
+              New Case
             </Link>
           </div>
         </div>

@@ -44,6 +44,14 @@ from app.database import engine
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
+# Estimated delivery time (days) from each warehouse to the customer.
+# Demo configuration; production would read this from the logistics system.
+WAREHOUSE_DELIVERY_DAYS = {"Mumbai": 1, "Pune": 2, "Bengaluru": 3}
+
+
+def _delivery_days(warehouse: str) -> int:
+    return WAREHOUSE_DELIVERY_DAYS.get(warehouse, 5)
+
 # ─── Observation Phase (no LLM) ───────────────────────────────────────────────
 
 def _observe(session: Session, case_id: str, execution_id: str, seq_counter: list) -> dict:
@@ -245,7 +253,8 @@ def _call_llm(prompt: str) -> dict:
 
 def _build_plan_prompt(ctx: dict) -> str:
     inv_summary = "\n".join(
-        f"  - {w['warehouse']}: {w['available']} units available"
+        f"  - {w['warehouse']}: {w['available']} units available, "
+        f"estimated delivery {_delivery_days(w['warehouse'])} day(s)"
         for w in ctx.get("inventory", [])
     ) or "  - No inventory data"
 
@@ -278,7 +287,8 @@ Analyze this case and determine the optimal resolution. You must return ONLY a v
 
 If eligible:
   - Select resolution_type: "replacement" or "refund"
-  - Select preferred_warehouse: the warehouse with the most available stock
+  - Select preferred_warehouse: among warehouses with available stock, the one with the fastest
+    estimated delivery (policy gives premium customers priority allocation for faster delivery)
   - Provide clear reasoning
   - Provide 2-4 actionable_options the support agent can present to the customer
 
@@ -305,7 +315,8 @@ Return this exact JSON structure:
 
 def _build_replan_prompt(ctx: dict, original_plan: dict, failure: dict) -> str:
     inv_summary = "\n".join(
-        f"  - {w['warehouse']}: {w['available']} units available"
+        f"  - {w['warehouse']}: {w['available']} units available, "
+        f"estimated delivery {_delivery_days(w['warehouse'])} day(s)"
         for w in ctx.get("inventory", [])
     ) or "  - No inventory data"
 
@@ -340,7 +351,7 @@ You must replan and select an alternative resolution. Return ONLY a valid JSON o
   ]
 }}
 
-Select an alternative warehouse that has available stock. If no inventory is available anywhere, set decision to "ESCALATE"."""
+Select an alternative warehouse that has available stock, preferring the fastest estimated delivery. If no inventory is available anywhere, set decision to "ESCALATE"."""
 
 
 # ─── Main Agent Entry Point ───────────────────────────────────────────────────

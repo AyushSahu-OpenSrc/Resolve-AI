@@ -1,12 +1,14 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
+import { usePathname } from 'next/navigation'
 import { ChutkuAvatar, ChutkuEmotion } from './ChutkuAvatar'
 import { ChutkuAssistantPanel } from './ChutkuAssistantPanel'
 import { IconSpark } from '@/components/icons'
 import './chutku.css'
 
 export function ChutkuPet() {
+  const pathname = usePathname()
   // Screen position
   const [pos, setPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [mounted, setMounted] = useState(false)
@@ -14,10 +16,62 @@ export function ChutkuPet() {
   const [isBlinking, setIsBlinking] = useState(false)
   const [isPanelOpen, setIsPanelOpen] = useState(false)
   const [showSpeechBubble, setShowSpeechBubble] = useState(false)
-  const [speechBubbleText, setSpeechBubbleText] = useState("ResolveAI Assistant ready. Click to converse.")
+  const [speechBubbleText, setSpeechBubbleText] = useState("Hey! May I help you?")
   const [roamingEnabled, setRoamingEnabled] = useState(true)
   const [isMuted, setIsMuted] = useState(false)
   const [isHidden, setIsHidden] = useState(false)
+  const hasGreetedRef = useRef(false)
+
+  // Natural speech greeting
+  const speakGreeting = (phrase: string = "Hey! May I help you?") => {
+    if (typeof window === 'undefined' || isMuted) return
+    try {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel()
+        const u = new SpeechSynthesisUtterance(phrase)
+        u.rate = 1.05
+        u.pitch = 1.15
+        u.onstart = () => {
+          setEmotion('speaking')
+          setShowSpeechBubble(true)
+        }
+        u.onend = () => setEmotion('idle')
+        window.speechSynthesis.speak(u)
+      }
+    } catch {}
+  }
+
+  // Arrival on landing page greeting: "jaise hi koi landing page pe aaye chutku AI bole hey may I help you"
+  useEffect(() => {
+    if (pathname === '/') {
+      setSpeechBubbleText("Hey! May I help you?")
+      setShowSpeechBubble(true)
+
+      const triggerGreeting = () => {
+        if (!hasGreetedRef.current) {
+          hasGreetedRef.current = true
+          speakGreeting("Hey! May I help you?")
+        }
+      }
+
+      triggerGreeting()
+
+      const handleUserGesture = () => {
+        triggerGreeting()
+        window.removeEventListener('pointerdown', handleUserGesture)
+        window.removeEventListener('keydown', handleUserGesture)
+      }
+      window.addEventListener('pointerdown', handleUserGesture, { once: true })
+      window.addEventListener('keydown', handleUserGesture, { once: true })
+
+      return () => {
+        window.removeEventListener('pointerdown', handleUserGesture)
+        window.removeEventListener('keydown', handleUserGesture)
+      }
+    } else {
+      setSpeechBubbleText("ResolveAI Assistant ready. Click to converse.")
+    }
+  }, [pathname, isMuted])
 
   // Dragging state
   const isDragging = useRef(false)

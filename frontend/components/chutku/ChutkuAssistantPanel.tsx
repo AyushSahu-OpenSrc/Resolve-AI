@@ -2,9 +2,11 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import Link from 'next/link'
 import { useUser } from '@clerk/nextjs'
 import { api } from '@/lib/api'
 import {
+  IconChevronRight,
   IconClose,
   IconMic,
   IconPlay,
@@ -45,11 +47,15 @@ export function ChutkuAssistantPanel({
   const router = useRouter()
   const pathname = usePathname()
   const { isSignedIn } = useUser()
+  const isLanding = pathname === '/'
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'm1',
       role: 'assistant',
-      text: "Greetings. I am Chutku, your ResolveAI assistant. Ask me anything regarding customer cases, warehouse inventory, warranty policies, or system navigation.",
+      text: pathname === '/'
+        ? "Hey! May I help you?"
+        : "Greetings. I am Chutku, your ResolveAI assistant. Ask me anything regarding customer cases, warehouse inventory, warranty policies, or system navigation.",
     },
   ])
   const [input, setInput] = useState('')
@@ -274,6 +280,14 @@ export function ChutkuAssistantPanel({
     const userMsgId = 'u-' + Date.now()
     setMessages((prev) => [...prev, { id: userMsgId, role: 'user', text: query }])
 
+    // Without sign in on homepage/anywhere, Chutku must just respond "Please sign in."
+    if (!isSignedIn) {
+      const reply = "Please sign in."
+      setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: reply }])
+      speakText(reply)
+      return
+    }
+
     // Direct navigation shortcuts (Enforces authentication before entry)
     const qLower = query.toLowerCase()
     const guardAuth = (target: string, name: string) => {
@@ -460,81 +474,103 @@ export function ChutkuAssistantPanel({
 
   if (!isOpen) return null
 
-  // Calculate panel position so it stays on-screen
-  const panelRight = Math.max(16, window.innerWidth - chutkuPos.x - 30)
-  const panelBottom = Math.max(90, window.innerHeight - chutkuPos.y + 10)
-
   return (
-    <div
-      className="chutku-panel"
-      style={{
-        right: Math.min(panelRight, window.innerWidth - 400),
-        bottom: Math.min(panelBottom, window.innerHeight - 560),
-      }}
-    >
-      {/* Header */}
-      <div className="chutku-panel-header">
-        <div className="chutku-panel-title">
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #38bdf8, #818cf8)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 0 12px rgba(56, 189, 248, 0.4)',
-            }}
-          >
-            <IconSpark size={18} color="#fff" />
+    <>
+      <div className="chutku-drawer-scrim" onClick={onClose} aria-hidden="true" />
+      <aside
+        className={`chutku-panel ${isCollapsed ? 'collapsed' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Chutku AI Voice Companion"
+      >
+        {/* Header */}
+        <div className="chutku-panel-header">
+          <div className="chutku-panel-title">
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #38bdf8, #818cf8)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 0 12px rgba(56, 189, 248, 0.4)',
+                flexShrink: 0,
+              }}
+            >
+              <IconSpark size={18} color="#fff" />
+            </div>
+            {!isCollapsed && (
+              <div>
+                <strong>Chutku AI Assistant</strong>
+                <small>
+                  {isListening
+                    ? 'Listening to microphone input…'
+                    : isSpeaking
+                    ? 'Synthesizing neural voice…'
+                    : isThinking
+                    ? 'Evaluating database state…'
+                    : 'Right-side drawer'}
+                </small>
+              </div>
+            )}
           </div>
-          <div>
-            <strong>Chutku AI Voice Companion</strong>
-            <small>
-              {isListening
-                ? 'Listening to microphone input…'
-                : isSpeaking
-                ? 'Synthesizing neural voice…'
-                : isThinking
-                ? 'Evaluating database state…'
-                : 'System ready'}
-            </small>
-          </div>
-        </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {/* Settings button */}
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className={`chutku-btn-icon ${showSettings ? 'active' : ''}`}
-            style={{ width: 28, height: 28 }}
-            title="Voice & Language Settings"
-          >
-            <IconSettings size={14} />
-          </button>
-          {/* Mute button */}
-          <button
-            onClick={toggleMute}
-            className="chutku-btn-icon"
-            style={{ width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-            title={isMuted ? 'Unmute voice output' : 'Mute voice output'}
-          >
-            {isMuted ? <IconVolumeMute size={14} /> : <IconVolume size={14} />}
-          </button>
-          {/* Close button */}
-          <button
-            onClick={() => {
-              stopAudio()
-              onClose()
-            }}
-            className="chutku-btn-icon"
-            style={{ width: 28, height: 28 }}
-          >
-            <IconClose size={14} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {/* Collapse toggle */}
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="chutku-btn-icon"
+              style={{ width: 28, height: 28 }}
+              title={isCollapsed ? 'Expand drawer' : 'Collapse drawer'}
+            >
+              <IconChevronRight
+                size={14}
+                style={{
+                  transform: isCollapsed ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.2s',
+                }}
+              />
+            </button>
+
+            {!isCollapsed && (
+              <>
+                {/* Settings button */}
+                <button
+                  onClick={() => setShowSettings(!showSettings)}
+                  className={`chutku-btn-icon ${showSettings ? 'active' : ''}`}
+                  style={{ width: 28, height: 28 }}
+                  title="Voice & Language Settings"
+                >
+                  <IconSettings size={14} />
+                </button>
+                {/* Mute button */}
+                <button
+                  onClick={toggleMute}
+                  className="chutku-btn-icon"
+                  style={{ width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  title={isMuted ? 'Unmute voice output' : 'Mute voice output'}
+                >
+                  {isMuted ? <IconVolumeMute size={14} /> : <IconVolume size={14} />}
+                </button>
+              </>
+            )}
+
+            {/* Close button */}
+            <button
+              onClick={() => {
+                stopAudio()
+                onClose()
+              }}
+              className="chutku-btn-icon"
+              style={{ width: 28, height: 28 }}
+              title="Close drawer"
+            >
+              <IconClose size={14} />
+            </button>
+          </div>
         </div>
-      </div>
 
       {/* Voice Settings Dropdown / Drawer */}
       {showSettings && (
@@ -664,6 +700,27 @@ export function ChutkuAssistantPanel({
         {messages.map((m) => (
           <div key={m.id} className={`chutku-msg ${m.role}`}>
             {m.text}
+            {m.text === "Please sign in." && (
+              <div style={{ marginTop: '8px' }}>
+                <Link
+                  href="/sign-in"
+                  className="chutku-chip active"
+                  style={{
+                    display: 'inline-flex',
+                    background: 'linear-gradient(135deg, #2563eb, #38bdf8)',
+                    color: '#fff',
+                    border: 'none',
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                    padding: '5px 12px',
+                    borderRadius: '999px',
+                  }}
+                  onClick={() => onClose()}
+                >
+                  Sign In →
+                </Link>
+              </div>
+            )}
           </div>
         ))}
 
@@ -708,6 +765,7 @@ export function ChutkuAssistantPanel({
           <IconSend size={15} />
         </button>
       </div>
-    </div>
+    </aside>
+    </>
   )
 }

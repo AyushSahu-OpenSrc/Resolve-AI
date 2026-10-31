@@ -488,6 +488,25 @@ async def import_policies(file: UploadFile = File(...), session: Session = Depen
 
 # ─── Cases ────────────────────────────────────────────────────────────────────
 
+ISSUE_KEYWORDS = [
+    # Checked in order: the first matching group wins.
+    ("wrong_item", ["wrong item", "wrong product", "instead of", "received a different", "not what i ordered", "incorrect item"]),
+    ("damaged_on_arrival", ["damaged", "cracked", "broken", "shattered", "crushed", "dented", "scratched", "torn", "smashed"]),
+    ("defective", ["defective", "not working", "doesn't work", "does not work", "stopped working", "no sound",
+                   "no audio", "faulty", "dead", "won't turn on", "not turning on", "malfunction"]),
+    ("late_delivery", ["late", "delayed", "not arrived", "hasn't arrived", "still waiting"]),
+]
+
+
+def classify_issue(message: str) -> Optional[str]:
+    """Map a customer's complaint to a policy category using plain keyword rules."""
+    text = (message or "").lower()
+    for issue_type, words in ISSUE_KEYWORDS:
+        if any(w in text for w in words):
+            return issue_type
+    return None
+
+
 @app.post("/api/cases", response_model=CaseResponse)
 def create_case(req: CreateCaseRequest, session: Session = Depends(get_session)):
     # Validate customer and order exist
@@ -497,6 +516,12 @@ def create_case(req: CreateCaseRequest, session: Session = Depends(get_session))
     order = session.get(Order, req.order_id)
     if not order:
         raise HTTPException(404, f"Order {req.order_id} not found")
+
+    # Orders don't carry an issue up front; work it out from the customer's complaint
+    # so the agent can find the matching policy.
+    if not order.issue_type:
+        order.issue_type = classify_issue(req.customer_message)
+        session.add(order)
 
     case_id = f"CASE-{uuid.uuid4().hex[:8].upper()}"
     case = SupportCase(
