@@ -393,18 +393,18 @@ export function ChutkuAssistantPanel({
             if (accumulatedText) speakText(accumulatedText)
           },
           onError: (err: string) => {
-            const fallback = accumulatedText || 'ResolveAI autonomous resolution agent evaluated your query. Verified records and policies are loaded from SQLite.'
+            const fallback = accumulatedText || (err ? `Service error: ${err}` : 'Unable to connect to ResolveAI backend. Please check connection.')
             setMessages((prev) =>
               prev.map((m) => (m.id === aiMsgId ? { ...m, text: fallback } : m))
             )
-            setEmotion('happy')
-            speakText(fallback)
+            setEmotion('idle')
+            if (accumulatedText) speakText(accumulatedText)
           },
         },
         { customerId: activeCustomer }
       )
-    } catch {
-      const errReply = "I couldn't reach the live backend stream right now, but I am ready to help you navigate or inspect your records!"
+    } catch (e: any) {
+      const errReply = e?.message ? `Connection error: ${e.message}` : 'Unable to reach ResolveAI backend stream. Please check server status.'
       setMessages((prev) =>
         prev.map((m) => (m.id === aiMsgId ? { ...m, text: errReply } : m))
       )

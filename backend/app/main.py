@@ -38,6 +38,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.database import create_db_and_tables, get_session, engine
+from app.chutku_service import process_chutku_query
 from app.models import (
     Customer, Order, Product, Inventory, Policy,
     SupportCase, Replacement, AgentEvent, AgentExecution,
@@ -174,6 +175,7 @@ class ChatRequest(BaseModel):
     customer_id: Optional[str] = None
     conversation_id: Optional[str] = None
     order_id: Optional[str] = None
+    role: Optional[str] = "customer"
 
 
 class OrderTransitionRequest(BaseModel):
@@ -804,161 +806,32 @@ def get_resolution_status(
 
 def resolve_offline_chutku_response(
     clean_message: str,
-    customer_snapshot: Optional[Dict[str, Any]],
-    inv_summary: str,
-    pol_summary: str,
-    all_cases: list,
+    customer_snapshot: Optional[Dict[str, Any]] = None,
+    inv_summary: str = "",
+    pol_summary: str = "",
+    all_cases: Optional[list] = None,
+    session: Optional[Session] = None,
+    auth_customer_id: Optional[str] = None,
+    caller_role: str = "customer",
 ) -> str:
     """
-    Intelligent, grounded deterministic resolver for Chutku AI when external LLM providers
-    (Gemini / Groq) are offline, rate-limited, or unconfigured.
-    Never dumps raw generic database dumps for greetings or arithmetic.
-    Accurately supports the 5 core judge evaluation scenarios.
+    Intelligent, grounded, and verified resolver for Chutku AI delegating to chutku_service.
+    Never hallucinates or fabricates static text. Queries verified database state.
     """
-    q_raw = clean_message.strip()
-    q_lower = q_raw.lower()
-
-    # 1. Arithmetic & Logic: "What is 2 plus 2? Reply only with the number"
-    math_match = re.search(r'\b(?:what\s+is\s+)?(\d+)\s*(\+|\-|\*|\/|\bplus\b|\bminus\b|\btimes\b|\bdivided\s+by\b)\s*(\d+)', q_lower)
-    if math_match:
-        n1 = int(math_match.group(1))
-        op = math_match.group(2).strip()
-        n2 = int(math_match.group(3))
-        res = 0
-        if op in ('+', 'plus'):
-            res = n1 + n2
-        elif op in ('-', 'minus'):
-            res = n1 - n2
-        elif op in ('*', 'times'):
-            res = n1 * n2
-        elif op in ('/', 'divided by') and n2 != 0:
-            res = n1 // n2
-        
-        if "only with the number" in q_lower or "only number" in q_lower or "just the number" in q_lower or "sirf number" in q_lower:
-            return str(res)
-        return f"{res}"
-
-    # 2. Greetings & Introductions
-    greeting_words = ["hi", "hello", "hey", "namaste", "good morning", "good afternoon", "good evening", "chutku", "heyy"]
-    if any(q_lower.startswith(g) or q_lower == g for g in greeting_words) or q_lower in ["hi chutku", "hello chutku", "hey chutku"]:
-        cust_greeting = ""
-        if customer_snapshot and "customer" in customer_snapshot:
-            cust_name = customer_snapshot["customer"].get("name", "there")
-            cust_greeting = f", {cust_name}"
-        return (
-            f"Hello{cust_greeting}! I am Chutku, your ResolveAI autonomous resolution assistant. "
-            f"I have your verified customer profile and orders loaded. "
-            f"I can help you check orders, track shipments, verify warranty policies, or resolve an issue. "
-            f"How can I assist you today?"
+    if session is not None:
+        return process_chutku_query(
+            message=clean_message,
+            session=session,
+            auth_customer_id=auth_customer_id,
+            caller_role=caller_role,
         )
-
-    # 3. Identity queries: Who are you?
-    if any(w in q_lower for w in ["who are you", "what are you", "what is your name", "tell me about yourself", "introduce yourself"]):
-        return (
-            "I am Chutku, the unified autonomous customer resolution agent for ResolveAI 2.0. "
-            "I manage the entire customer lifecycle from order tracking and proactive delay remediation to automated replacement, "
-            "inventory replanning, and verified audit logging."
+    with Session(engine) as s:
+        return process_chutku_query(
+            message=clean_message,
+            session=s,
+            auth_customer_id=auth_customer_id,
+            caller_role=caller_role,
         )
-
-    # 4. Scenario 1: Customer Memory & Longitudinal Facts
-    if any(w in q_lower for w in ["what do you remember", "my memory", "my profile", "my preference", "what are my preferences", "who am i", "remember about me"]):
-        if customer_snapshot and "customer" in customer_snapshot:
-            c = customer_snapshot["customer"]
-            facts = customer_snapshot.get("facts", [])
-            pref_facts = [f.get("fact", "") for f in facts if f.get("fact")]
-            facts_text = "; ".join(pref_facts) if pref_facts else "Evening delivery (6:00 PM - 9:00 PM); Verified VIP status"
-            orders_cnt = customer_snapshot.get("orders_count", len(customer_snapshot.get("orders", [])))
-            return (
-                f"Based on your verified ResolveAI persistent memory profile: You are {c.get('name', 'Rahul Sharma')} ({c.get('tier', 'Premium').title()} Tier). "
-                f"Your verified preferences: {facts_text}. "
-                f"You have {orders_cnt} lifetime orders on record. "
-                f"Feedback deferral is active to respect your schedule."
-            )
-        return (
-            "Based on your verified ResolveAI memory profile: You are Rahul Sharma (Enterprise Premium Tier). "
-            "Your verified preferences include evening delivery slots (6:00 PM - 9:00 PM) and proactive WhatsApp dispatch alerts. "
-            "You have 2 lifetime orders on record."
-        )
-
-    # 5. Scenario 2: Damaged Product Reporting (ORD-1042 / Headphones)
-    if any(w in q_lower for w in ["damaged", "broken", "cracked", "earcup", "headphones", "ord-1042", "damage"]):
-        return (
-            "I have retrieved your order ORD-1042 for Premium Wireless Headphones. "
-            "Delivery was completed 4 days ago, which is well within our 7-day transit damage window under policy POL-DMG-01. "
-            "You are fully eligible for a zero-cost priority replacement. "
-            "Current warehouse verification confirms stock available at Mumbai Hub (1 unit) and Pune Hub (2 units). "
-            "Would you like me to initiate the replacement workflow with evening delivery?"
-        )
-
-    # 6. Scenario 3: Inventory Conflict & Autonomous Replanning
-    if any(w in q_lower for w in ["inventory conflict", "replanning", "warehouse conflict", "stock depletion", "pune hub", "mumbai hub", "reroute", "conflict"]):
-        return (
-            "ResolveAI handles inventory conflicts through autonomous multi-hub replanning. "
-            "When the primary Mumbai Central Hub encounters stock exhaustion or concurrent reservation locks on SKU WH-PRM-BLK-01, "
-            "the system automatically replans fulfillment to the Pune Hub (holding 2 available units). "
-            "It dispatches via BlueDart priority transit (SHIP-2026-LPT) to preserve the promised delivery SLA without manual intervention."
-        )
-
-    # 7. Scenario 4: Zero Trust Security & Supervisor Gate
-    if any(w in q_lower for w in ["security", "zero trust", "supervisor", "approval", "override", "unauthorized", "cross customer", "permission"]):
-        return (
-            "ResolveAI enforces Zero Trust security across all operations: "
-            "1. Cryptographic JWT authentication with verified customer boundaries (cross-customer data access is strictly rejected). "
-            "2. Standard agents have bounded permissions for read-only lookups and standard replacements. "
-            "3. High-risk actions (refunds > 5000 INR, cross-customer changes, manual policy overrides) are automatically gated by POL-OVR-01 and require cryptographic Supervisor authorization."
-        )
-
-    # 8. Scenario 5: Verified Resolution vs Traditional Chatbots
-    if any(w in q_lower for w in ["traditional chatbot", "how are you different", "why resolveai", "chatbot comparison", "resolution vs chatbot", "what makes you different"]):
-        return (
-            "Unlike traditional chatbots that merely match static keywords and generate unverified tickets, ResolveAI 2.0 is an autonomous, tool-grounded Agentic AI platform. "
-            "Key differences: "
-            "1. Continuous persistent memory across sessions and channels. "
-            "2. Observable 10-step agentic loop (Understand -> Retrieve -> Observe -> Plan -> Authorize -> Execute -> Evaluate -> Adapt -> Verify -> Persist). "
-            "3. Atomic database operations preventing double fulfillment and race conditions. "
-            "4. Verifiable cryptographic SHA-256 audit chaining for every decision and carrier checkpoint."
-        )
-
-    # 9. Order & Shipment Tracking
-    if any(w in q_lower for w in ["order", "track", "tracking", "shipment", "delivery status", "package"]):
-        return (
-            "Order tracking summary: Order ORD-1042 (Premium Wireless Headphones) was delivered via Delhivery. "
-            "Order ORD-2026-LPT is currently in transit via BlueDart Express (BD-2026-9941) from Pune Hub with scheduled delivery within 24 hours. "
-            "All shipment checkpoints are cryptographically verified."
-        )
-
-    # 10. Policy & Warranty
-    if any(w in q_lower for w in ["policy", "policies", "warranty", "refund", "return", "replacement"]):
-        return (
-            "ResolveAI verified policies: "
-            "POL-DMG-01: Priority replacement within 7 days of delivery for confirmed transit damage. "
-            "POL-DEF-02: Defective hardware replacement within 30 days of purchase. "
-            "POL-RET-03: Standard return window of 14 days for unopened items. "
-            "POL-OVR-01: High-risk overrides require Supervisor cryptographic authorization."
-        )
-
-    # 11. Inventory / Stock
-    if any(w in q_lower for w in ["inventory", "stock", "warehouse", "hubs", "available units"]):
-        return (
-            f"Current warehouse inventory from live database: {inv_summary}. "
-            f"Multi-hub autonomous replanning is active between Mumbai Central and Pune East hubs."
-        )
-
-    # 12. Support Cases
-    if any(w in q_lower for w in ["case", "cases", "ticket", "dispute", "investigation"]):
-        open_cnt = len([c for c in all_cases if getattr(c, "status", "") in ("open", "running")])
-        resolved_cnt = len([c for c in all_cases if getattr(c, "status", "") in ("resolved", "verified", "completed")])
-        return (
-            f"Case ledger summary: {len(all_cases)} total cases on record ({open_cnt} active investigation, {resolved_cnt} resolved). "
-            f"Every case maintains an immutable SHA-256 event audit log."
-        )
-
-    # 13. General Contextual Fallback
-    return (
-        "I understand your inquiry. I am currently operating in verified local database mode. "
-        "I can help you check orders, track shipments, verify warranty policies, inspect support cases, or review warehouse inventory. "
-        "What specific detail would you like me to look up?"
-    )
 
 
 @app.post("/api/chat")
@@ -1078,12 +951,11 @@ async def chat_endpoint(req: ChatRequest, session: Session = Depends(get_session
 
             # 3. Grounded intelligent deterministic fallback
             if not llm_worked:
-                grounded_text = resolve_offline_chutku_response(
-                    clean_message=clean_message,
-                    customer_snapshot=snapshot if (cust_id and 'snapshot' in locals() and 'error' not in snapshot) else None,
-                    inv_summary=inv_summary,
-                    pol_summary=pol_summary,
-                    all_cases=all_cases
+                grounded_text = process_chutku_query(
+                    message=clean_message,
+                    session=session,
+                    auth_customer_id=cust_id,
+                    caller_role=getattr(req, "role", "customer") or "customer",
                 )
                 for word in grounded_text.split(" "):
                     token = word + " "

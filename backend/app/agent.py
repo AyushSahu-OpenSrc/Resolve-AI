@@ -37,7 +37,7 @@ from sqlmodel import Session, select
 
 from app.models import (
     SupportCase, AgentExecution, AgentEvent,
-    Customer, Order, Product, Inventory, Policy,
+    Customer, Order, Product, Inventory, Policy, Replacement,
     EventType, EventStatus
 )
 from app.tools import (
@@ -123,27 +123,65 @@ def _observe(session: Session, case_id: str, execution_id: str, seq_counter: lis
     eligibility = False
     eligibility_reason = "No policy found"
 
-    if order and order.issue_type:
+    # Classify issue type from order or customer grievance
+    effective_issue = order.issue_type if (order and order.issue_type) else None
+    if not effective_issue and case and case.customer_message:
+        msg_l = case.customer_message.lower()
+        if any(w in msg_l for w in ('damaged', 'broken', 'cracked', 'shattered')):
+            effective_issue = 'damaged_on_arrival'
+        elif any(w in msg_l for w in ('defective', 'no sound', 'sound', 'speaker', 'switch', 'faulty', 'not working')):
+            effective_issue = 'defective'
+        elif any(w in msg_l for w in ('wrong', 'incorrect', 'different')):
+            effective_issue = 'wrong_item'
+        elif any(w in msg_l for w in ('late', 'delayed', 'where is')):
+            effective_issue = 'late_delivery'
+    if order and not order.issue_type and effective_issue:
+        order.issue_type = effective_issue
+        session.add(order)
+
+    if effective_issue:
         policy = session.exec(
-            select(Policy).where(Policy.category == order.issue_type, Policy.active == True)
+            select(Policy).where(Policy.category == effective_issue, Policy.active == True)
+        ).first()
+
+    existing_rep = None
+    if order:
+        existing_rep = session.exec(
+            select(Replacement).where(
+                (Replacement.case_id == case.id) | (Replacement.order_id == order.id)
+            )
         ).first()
 
     if policy:
         rules = policy.eligibility_rules
-        # Deterministic eligibility check
-        status_ok  = order.status in rules.get("requires_order_status", [])
-        issue_ok   = order.issue_type in rules.get("allowed_issue_types", [])
+        requires_status = rules.get("requires_order_status", [])
+        in_replacement_wf = (order.status in ("replacement_processing", "replaced") or existing_rep is not None)
+        status_ok  = (order.status in requires_status) or in_replacement_wf
+        issue_ok   = (order.issue_type or effective_issue) in rules.get("allowed_issue_types", [])
         days_ok    = (days_since_delivery is not None and
                       days_since_delivery <= rules.get("max_days_since_delivery", 0))
         is_expedited = customer.tier in rules.get("expedited_tiers", []) if customer else False
         eligibility  = status_ok and issue_ok and days_ok
-        eligibility_reason = (
-            f"Customer meets damaged-on-arrival policy: "
-            f"{days_since_delivery}d since delivery (max {rules.get('max_days_since_delivery')}d), "
-            f"status={order.status}. {'EXPEDITED (priority).' if is_expedited else 'Standard path.'}"
-            if eligibility
-            else f"Not eligible: status_ok={status_ok}, issue_ok={issue_ok}, days_ok={days_ok}"
-        )
+        if in_replacement_wf and existing_rep:
+            eligibility_reason = (
+                f"Existing replacement {existing_rep.id} ({existing_rep.status}) active from {existing_rep.warehouse} Hub. "
+                f"Reconciled existing replacement workflow without duplicate allocation."
+            )
+        elif eligibility:
+            eligibility_reason = (
+                f"Customer meets {policy.category} policy: "
+                f"{days_since_delivery}d since delivery (max {rules.get('max_days_since_delivery')}d), "
+                f"status={order.status}. {'EXPEDITED (priority).' if is_expedited else 'Standard path.'}"
+            )
+        else:
+            reasons = []
+            if not status_ok:
+                reasons.append(f"status_ok=False (status '{order.status}' not in {requires_status})")
+            if not issue_ok:
+                reasons.append(f"issue_ok=False (issue '{order.issue_type}' not in {rules.get('allowed_issue_types')})")
+            if not days_ok:
+                reasons.append(f"days_ok=False ({days_since_delivery} days since delivery exceeds {rules.get('max_days_since_delivery')} days limit)")
+            eligibility_reason = f"Not eligible: " + ", ".join(reasons)
         policy_data = {
             "id": policy.id,
             "policy_text": policy.policy_text,

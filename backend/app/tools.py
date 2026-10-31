@@ -503,6 +503,29 @@ def create_replacement(
     if not order:
         return {"success": False, "error": "Order not found", "error_code": "ORDER_NOT_FOUND"}
 
+    # ── Check for existing replacement (Idempotent workflow) ───────────────
+    existing_rep = session.exec(
+        select(Replacement).where(
+            (Replacement.case_id == case_id) | (Replacement.order_id == order.id)
+        )
+    ).first()
+    if existing_rep:
+        result = {
+            "success": True,
+            "replacement_id": existing_rep.id,
+            "warehouse": existing_rep.warehouse,
+            "product_id": order.product_id,
+            "tracking_number": existing_rep.tracking_number,
+            "status": existing_rep.status,
+            "reconciled": True,
+            "message": f"Active replacement {existing_rep.id} already exists for order {order.id}. Reconciled existing workflow.",
+        }
+        _log_event(session, case_id, execution_id, "create_replacement",
+                   EventType.tool_result, EventStatus.COMPLETED,
+                   f"Existing replacement {existing_rep.id} detected at {existing_rep.warehouse} Hub. Reconciled without duplicate inventory consumption.",
+                   {"case_id": case_id, "warehouse": warehouse}, result, seq)
+        return result
+
     # ── DEMO CONFLICT MECHANIC ─────────────────────────────────────────────
     # Uses a SEPARATE DB session to simulate a competing process consuming the last
     # Mumbai unit. The main session will see the committed change on its next read.
@@ -669,7 +692,9 @@ def verify_resolution(
 
     # Check 1: replacement record exists
     replacement = session.exec(
-        select(Replacement).where(Replacement.case_id == case_id)
+        select(Replacement).where(
+            (Replacement.case_id == case_id) | (Replacement.order_id == case.order_id)
+        )
     ).first()
     if replacement:
         checks.append({"check": "replacement_record_exists", "passed": True,
