@@ -49,3 +49,4 @@ def test_cors_get_origin(origin):
     response = client.get("/api/cases", headers=headers)
     assert response.status_code == 200
     assert response.headers.get("access-control-allow-origin") == origin
+

@@ -129,10 +129,10 @@ export default function ImportsPage() {
           }}
         >
           <div>
-            <h3 style={{ margin: '0 0 6px', fontSize: '16px', color: '#fff' }}>
+            <h3 style={{ margin: '0 0 6px', fontSize: '16px', color: 'var(--ink)' }}>
               Download Ready-to-Test Sample CSV Datasets
             </h3>
-            <p style={{ margin: 0, fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)' }}>
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--ink-muted)' }}>
               Get calibrated test data featuring 10 customers, 11 multi-item orders, 14 warehouse stock entries, and 5 business policies.
             </p>
           </div>
