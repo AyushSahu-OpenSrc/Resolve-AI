@@ -124,3 +124,4 @@ def get_capabilities_summary() -> str:
     for name, meta in CAPABILITY_REGISTRY.items():
         lines.append(f"- {name} [{meta['status']}]: {meta['description']}")
     return "\n".join(lines)
+
