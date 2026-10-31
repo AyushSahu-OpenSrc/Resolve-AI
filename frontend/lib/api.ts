@@ -243,6 +243,45 @@ export const api = {
       body: JSON.stringify({ action_type: actionType, ...options }),
     }),
 
+  // ─── ResolveAI 2.0: Customer Lifecycle & Memory ────────────────────────
+  getCustomerMemory: (customerId: string) => apiFetch(`/api/customers/${customerId}/memory`),
+  deferCustomerFeedback: (customerId: string, orderId: string, days = 3) =>
+    apiFetch(`/api/customers/${customerId}/feedback/defer`, {
+      method: 'POST',
+      body: JSON.stringify({ order_id: orderId, days_deferral: days }),
+    }),
+  getOrderTimeline: (orderId: string) => apiFetch(`/api/orders/${orderId}/timeline`),
+  transitionOrderLifecycle: (orderId: string, data: { new_state: string; actor?: string; reason?: string; metadata?: any }) =>
+    apiFetch(`/api/orders/${orderId}/lifecycle`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getShipment: (orderId: string) => apiFetch(`/api/shipments/${orderId}`),
+  updateShipmentCheckpoint: (shipmentId: string, data: { status: string; current_location: string; is_delayed?: boolean; delay_reason?: string; carrier?: string }) =>
+    apiFetch(`/api/shipments/${shipmentId}/checkpoint`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getProactiveAlerts: () => apiFetch('/api/proactive/alerts'),
+
+  // ─── Risk-Adaptive Approvals ───────────────────────────────────────────
+  getPendingActions: () => apiFetch('/api/actions/pending'),
+  approveAction: (actionId: string, approvedBy = 'supervisor') =>
+    apiFetch(`/api/actions/${actionId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ approved_by: approvedBy }),
+    }),
+  rejectAction: (actionId: string, reason = 'Rejected by supervisor') =>
+    apiFetch(`/api/actions/${actionId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
+  // ─── Hackathon Demo Simulator ──────────────────────────────────────────
+  runSimulator: () => apiFetch('/api/simulator/run', { method: 'POST' }),
+  resetSimulator: () => apiFetch('/api/simulator/reset', { method: 'POST' }),
+  getSimulatorStatus: () => apiFetch('/api/simulator/status'),
+
   // Voice Neural TTS
   getVoices: () => apiFetch('/api/chutku/voices'),
   generateTts: (payload: { text: string; voice_id?: string; rate?: string }): Promise<Response> => {
@@ -264,7 +303,7 @@ export const api = {
     })
   },
 
-  // SSE Chat Streaming for Chutku Assistant
+  // SSE Chat Streaming for Chutku Assistant with Persistent Memory Support
   streamChat: async (
     message: string,
     callbacks: {
@@ -272,15 +311,22 @@ export const api = {
       onError?: (error: string) => void
       onDone?: () => void
     },
-    caseId?: string
+    context?: string | { caseId?: string; customerId?: string; conversationId?: string; orderId?: string }
   ): Promise<void> => {
     const base = getApiBase()
     const url = `${base}/api/chat`
+    const ctx = typeof context === 'string' ? { caseId: context } : context || {}
     try {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, case_id: caseId }),
+        body: JSON.stringify({
+          message,
+          case_id: ctx.caseId,
+          customer_id: ctx.customerId,
+          conversation_id: ctx.conversationId,
+          order_id: ctx.orderId,
+        }),
       })
 
       if (!res.ok) {

@@ -27,8 +27,17 @@ from sqlmodel import Session, select
 from app.database import create_db_and_tables, get_session, engine
 from app.models import (
     Customer, Order, Product, Inventory, Policy,
-    SupportCase, Replacement, AgentEvent, AgentExecution
+    SupportCase, Replacement, AgentEvent, AgentExecution,
+    Shipment, CustomerConversation, ConversationMessage, CustomerPreference,
+    ResolutionAction, FollowUpTask, Feedback
 )
+from app.lifecycle import transition_order_state, update_shipment_checkpoint, scan_proactive_issues
+from app.memory import (
+    get_or_create_conversation, record_conversation_message,
+    retrieve_customer_memory_snapshot, record_deferred_feedback
+)
+from app.security_gateway import authorize_action, sanitize_input, classify_action_risk
+from app.simulator import run_full_simulation, reset_simulation, SIM_ORDER_ID, SIM_CUSTOMER_ID
 from app.tools import _now
 import app.seed as seed_module
 
@@ -146,6 +155,34 @@ class AgentEventResponse(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     case_id: Optional[str] = None
+    customer_id: Optional[str] = None
+    conversation_id: Optional[str] = None
+    order_id: Optional[str] = None
+
+
+class OrderTransitionRequest(BaseModel):
+    new_state: str
+    actor: str = "agent"
+    reason: str = ""
+    metadata: Optional[dict] = None
+
+
+class ShipmentCheckpointRequest(BaseModel):
+    status: str
+    current_location: str
+    is_delayed: bool = False
+    delay_reason: Optional[str] = None
+    carrier: Optional[str] = None
+
+
+class DeferFeedbackRequest(BaseModel):
+    order_id: str
+    days_deferral: int = 3
+
+
+class ActionDecisionRequest(BaseModel):
+    approved_by: str = "supervisor"
+    reason: Optional[str] = None
 
 
 class ActionRequest(BaseModel):
@@ -718,18 +755,57 @@ def start_resolution(
 # ─── Chat SSE Streaming Endpoint ──────────────────────────────────────────────
 
 @app.post("/api/chat")
-async def chat_endpoint(req: ChatRequest):
+async def chat_endpoint(req: ChatRequest, session: Session = Depends(get_session)):
     """
-    SSE streaming chat endpoint backed by Gemini (Groq fallback on quota errors).
+    SSE streaming chat endpoint backed by persistent customer memory and Gemini / Groq fallback.
     Returns text/event-stream with token-by-token chunks and a final done event.
     """
+    clean_message, flagged = sanitize_input(req.message)
+    
+    # Contextual memory extraction
+    cust_id = req.customer_id
+    if not cust_id:
+        msg_l = clean_message.lower()
+        if "cust-001" in msg_l or "rahul" in msg_l:
+            cust_id = "CUST-001"
+        elif "cust-004" in msg_l or "sneha" in msg_l:
+            cust_id = "CUST-004"
+        elif "cust-002" in msg_l or "priya" in msg_l:
+            cust_id = "CUST-002"
+        elif "cust-003" in msg_l or "amit" in msg_l:
+            cust_id = "CUST-003"
+
+    memory_ctx = ""
+    conv_id = req.conversation_id
+    if cust_id:
+        try:
+            snapshot = retrieve_customer_memory_snapshot(session, cust_id)
+            if "error" not in snapshot:
+                memory_ctx = (
+                    f"\n\nCUSTOMER PERSISTENT MEMORY CONTEXT:\n"
+                    f"- Customer: {snapshot['customer']['name']} (ID: {snapshot['customer']['id']}, Tier: {snapshot['customer']['tier']})\n"
+                    f"- Verified Facts: {snapshot['verified_facts_summary']}\n"
+                    f"- Recent Orders: {json.dumps(snapshot['recent_orders'][:3])}\n"
+                    f"- Open Cases: {json.dumps(snapshot['open_cases'])}\n"
+                    f"- Preferences: Deferred Feedback={snapshot['preferences']['deferred_feedback']}\n"
+                )
+            conv = get_or_create_conversation(session, cust_id, conversation_id=conv_id)
+            conv_id = conv.id
+            record_conversation_message(session, conv.id, sender="customer", message_text=clean_message)
+        except Exception as e:
+            logger.warning("Memory recall failed in chat: %s", e)
+
+    accumulated = []
+
     async def generate():
         try:
             system_ctx = (
-                "You are ResolveAI's customer resolution assistant. "
-                "You help support agents understand cases, policies, and resolution options. "
-                "Be concise, professional, and helpful. "
-                "If asked about a specific case, provide context-aware guidance."
+                "You are ResolveAI's unified autonomous resolution agent (Chutku). "
+                "You cover the complete customer lifecycle from order placement, transit updates, "
+                "proactive delay resolution, replacement/refund verification, to post-delivery support. "
+                "You remember customer order history, past resolutions, and follow-up preferences. "
+                "Never hallucinate policy rules or invented data. Be concise, empathetic, and professional."
+                + memory_ctx
             )
 
             # Try Gemini streaming
@@ -737,11 +813,12 @@ async def chat_endpoint(req: ChatRequest):
                 genai.configure(api_key=GEMINI_API_KEY)
                 model = genai.GenerativeModel(GEMINI_MODEL)
                 response = model.generate_content(
-                    [system_ctx + "\n\nUser: " + req.message],
+                    [system_ctx + "\n\nUser: " + clean_message],
                     stream=True
                 )
                 for chunk in response:
                     if chunk.text:
+                        accumulated.append(chunk.text)
                         yield f"data: {json.dumps({'token': chunk.text})}\n\n"
                         await asyncio.sleep(0)
             except Exception as e:
@@ -755,7 +832,7 @@ async def chat_endpoint(req: ChatRequest):
                     model="openai/gpt-oss-120b",
                     messages=[
                         {"role": "system", "content": system_ctx},
-                        {"role": "user", "content": req.message}
+                        {"role": "user", "content": clean_message}
                     ],
                     stream=True,
                     max_tokens=1024
@@ -763,10 +840,20 @@ async def chat_endpoint(req: ChatRequest):
                 for chunk in stream:
                     token = chunk.choices[0].delta.content or ""
                     if token:
+                        accumulated.append(token)
                         yield f"data: {json.dumps({'token': token})}\n\n"
                         await asyncio.sleep(0)
 
-            yield f"data: {json.dumps({'done': True})}\n\n"
+            # Save assistant response to conversation memory
+            full_text = "".join(accumulated)
+            if cust_id and conv_id and full_text:
+                try:
+                    with Session(engine) as s:
+                        record_conversation_message(s, conv_id, sender="agent", message_text=full_text)
+                except Exception as ex:
+                    logger.warning("Could not persist assistant message: %s", ex)
+
+            yield f"data: {json.dumps({'done': True, 'conversation_id': conv_id})}\n\n"
 
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -1135,6 +1222,161 @@ def get_chutku_voices():
             "default": False,
         },
     ]
+
+
+# ─── ResolveAI 2.0 Customer Lifecycle & Memory Endpoints ────────────────────
+
+@app.get("/api/customers/{customer_id}/memory", tags=["memory"])
+def get_customer_memory(customer_id: str, session: Session = Depends(get_session)):
+    """Retrieve persistent long-term memory snapshot for a customer."""
+    mem = retrieve_customer_memory_snapshot(session, customer_id)
+    if "error" in mem:
+        raise HTTPException(404, mem["error"])
+    return mem
+
+
+@app.post("/api/customers/{customer_id}/feedback/defer", tags=["memory"])
+def defer_feedback_endpoint(customer_id: str, req: DeferFeedbackRequest, session: Session = Depends(get_session)):
+    """Respect customer preference to defer feedback without repeated prompting."""
+    return record_deferred_feedback(session, customer_id, req.order_id, req.days_deferral)
+
+
+@app.get("/api/orders/{order_id}/timeline", tags=["lifecycle"])
+def get_order_timeline(order_id: str, session: Session = Depends(get_session)):
+    """Return full event history and lifecycle transitions for an order."""
+    events = session.exec(
+        select(AgentEvent).where(AgentEvent.order_id == order_id).order_by(AgentEvent.timestamp)
+    ).all()
+    shipment = session.exec(select(Shipment).where(Shipment.order_id == order_id)).first()
+    order = session.get(Order, order_id)
+    return {
+        "order_id": order_id,
+        "current_status": order.status if order else "unknown",
+        "lifecycle_state": order.lifecycle_state if order else "unknown",
+        "shipment": shipment,
+        "events": events,
+    }
+
+
+@app.post("/api/orders/{order_id}/lifecycle", tags=["lifecycle"])
+def transition_order_lifecycle(order_id: str, req: OrderTransitionRequest, session: Session = Depends(get_session)):
+    """Execute a validated order lifecycle state transition with immutable event logging."""
+    ok, msg, order = transition_order_state(
+        session=session,
+        order_id=order_id,
+        new_state=req.new_state,
+        actor=req.actor,
+        reason=req.reason,
+        metadata=req.metadata,
+    )
+    if not ok:
+        raise HTTPException(400, msg)
+    return {"status": "success", "message": msg, "order": order}
+
+
+@app.get("/api/shipments/{order_id}", tags=["lifecycle"])
+def get_shipment(order_id: str, session: Session = Depends(get_session)):
+    """Get shipment and tracking checkpoints for an order."""
+    shipment = session.exec(select(Shipment).where(Shipment.order_id == order_id)).first()
+    if not shipment:
+        raise HTTPException(404, f"No shipment record for order {order_id}")
+    return shipment
+
+
+@app.post("/api/shipments/{shipment_id}/checkpoint", tags=["lifecycle"])
+def update_checkpoint(shipment_id: str, req: ShipmentCheckpointRequest, session: Session = Depends(get_session)):
+    """Update shipment checkpoint and auto-advance order state."""
+    ok, msg, shipment = update_shipment_checkpoint(
+        session=session,
+        shipment_id=shipment_id,
+        status=req.status,
+        current_location=req.current_location,
+        is_delayed=req.is_delayed,
+        delay_reason=req.delay_reason,
+        carrier=req.carrier,
+    )
+    if not ok:
+        raise HTTPException(400, msg)
+    return {"status": "success", "message": msg, "shipment": shipment}
+
+
+@app.get("/api/proactive/alerts", tags=["proactive"])
+def get_proactive_alerts(session: Session = Depends(get_session)):
+    """Autonomous scanner detecting delays, delivery failures, and SLA breaches."""
+    alerts = scan_proactive_issues(session)
+    return {
+        "count": len(alerts),
+        "alerts": alerts,
+        "scanned_at": _now().isoformat(),
+    }
+
+
+# ─── Risk-Adaptive Security & Approvals ──────────────────────────────────────
+
+@app.get("/api/actions/pending", tags=["security"])
+def get_pending_actions(session: Session = Depends(get_session)):
+    """List high-risk resolution actions requiring supervisor authorization."""
+    actions = session.exec(
+        select(ResolutionAction).where(ResolutionAction.status == "pending_approval")
+    ).all()
+    return actions
+
+
+@app.post("/api/actions/{action_id}/approve", tags=["security"])
+def approve_action(action_id: str, req: ActionDecisionRequest, session: Session = Depends(get_session)):
+    """Supervisor approves high-risk action."""
+    action = session.get(ResolutionAction, action_id)
+    if not action:
+        raise HTTPException(404, f"Action {action_id} not found")
+    action.status = "approved"
+    action.approved_by = req.approved_by
+    action.executed_at = _now()
+    session.add(action)
+    session.commit()
+    return {"status": "approved", "action_id": action_id}
+
+
+@app.post("/api/actions/{action_id}/reject", tags=["security"])
+def reject_action(action_id: str, req: ActionDecisionRequest, session: Session = Depends(get_session)):
+    """Supervisor rejects high-risk action."""
+    action = session.get(ResolutionAction, action_id)
+    if not action:
+        raise HTTPException(404, f"Action {action_id} not found")
+    action.status = "rejected"
+    action.rejection_reason = req.reason or "Rejected by supervisor"
+    session.add(action)
+    session.commit()
+    return {"status": "rejected", "action_id": action_id, "reason": action.rejection_reason}
+
+
+# ─── Hackathon Demo Simulator ────────────────────────────────────────────────
+
+@app.post("/api/simulator/run", tags=["simulator"])
+def run_simulator_endpoint(session: Session = Depends(get_session)):
+    """Execute full 14-step Laptop Order Lifecycle simulation with real DB changes."""
+    return run_full_simulation(session)
+
+
+@app.post("/api/simulator/reset", tags=["simulator"])
+def reset_simulator_endpoint(session: Session = Depends(get_session)):
+    """Reset simulator database to pristine initial state."""
+    return reset_simulation(session)
+
+
+@app.get("/api/simulator/status", tags=["simulator"])
+def get_simulator_status(session: Session = Depends(get_session)):
+    """Inspect current simulator state."""
+    order = session.get(Order, SIM_ORDER_ID)
+    shipment = session.get(Shipment, "SHIP-2026-LPT")
+    events = session.exec(
+        select(AgentEvent).where(AgentEvent.order_id == SIM_ORDER_ID).order_by(AgentEvent.timestamp)
+    ).all()
+    return {
+        "order": order,
+        "shipment": shipment,
+        "events_count": len(events),
+        "events": events[-10:],
+    }
 
 
 # ─── Static files (Next.js build) ────────────────────────────────────────────

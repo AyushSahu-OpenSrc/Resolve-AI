@@ -18,6 +18,7 @@ type NavItem = { href: string; label: string; icon: ComponentType<SVGProps<SVGSV
 
 const workspaceNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: IconDashboard },
+  { href: '/simulator', label: 'Demo Simulator', icon: IconSpark },
   { href: '/cases', label: 'Cases', icon: IconCases, badge: 'open' },
   { href: '/agent-runs', label: 'Agent Runs', icon: IconSpark, badge: 'running' },
   { href: '/explorer?tab=customers', label: 'Customers', icon: IconUsers, tab: 'customers', badge: 'customers' },
@@ -33,7 +34,7 @@ const operationsNav: NavItem[] = [
   { href: '/onboarding', label: 'Workspace settings', icon: IconSettings },
 ]
 const titles: [string, string][] = [
-  ['/dashboard', 'Dashboard'], ['/cases/new', 'New Case'], ['/cases/', 'Case detail'], ['/cases', 'Cases'],
+  ['/dashboard', 'Dashboard'], ['/simulator', 'Hackathon Demo Simulator'], ['/cases/new', 'New Case'], ['/cases/', 'Case detail'], ['/cases', 'Cases'],
   ['/agent-runs', 'Agent Runs'], ['/explorer', 'Data explorer'], ['/fulfillment', 'Fulfillment'], ['/analytics', 'Analytics'],
   ['/policies', 'Policies'], ['/communications', 'Communications'], ['/imports', 'Import center'], ['/onboarding', 'Workspace settings'],
 ]

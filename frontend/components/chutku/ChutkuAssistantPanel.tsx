@@ -68,6 +68,7 @@ export function ChutkuAssistantPanel({
   const [voice, setVoice] = useState<VoicePersona>('neerja')
   const [language, setLanguage] = useState<VoiceLanguage>('en-IN')
   const [speed, setSpeed] = useState<number>(1.0)
+  const [activeCustomer, setActiveCustomer] = useState<'CUST-001' | 'CUST-004' | 'CUST-002'>('CUST-001')
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -396,7 +397,8 @@ export function ChutkuAssistantPanel({
               setEmotion('happy')
               speakText(accumulatedText || fallback)
             },
-          }
+          },
+          { customerId: activeCustomer }
         )
         return
       }
@@ -571,6 +573,24 @@ export function ChutkuAssistantPanel({
             </button>
           </div>
         </div>
+
+        {/* Customer Persistent Memory Context Selector */}
+        {!isCollapsed && !isLanding && isSignedIn && (
+          <div style={{ padding: '8px 14px', background: 'rgba(56, 189, 248, 0.08)', borderBottom: '1px solid rgba(56, 189, 248, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px' }}>
+            <span style={{ color: '#38bdf8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <IconSpark size={12} /> Active Memory:
+            </span>
+            <select
+              value={activeCustomer}
+              onChange={(e) => setActiveCustomer(e.target.value as any)}
+              style={{ background: 'rgba(15, 23, 42, 0.8)', color: 'var(--fg, #f8fafc)', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', outline: 'none' }}
+            >
+              <option value="CUST-001">Rahul Sharma (ORD-1042 / LPT)</option>
+              <option value="CUST-004">Sneha Reddy (ORD-1046)</option>
+              <option value="CUST-002">Priya Patel (ORD-1050)</option>
+            </select>
+          </div>
+        )}
 
       {/* Voice Settings Dropdown / Drawer */}
       {showSettings && (

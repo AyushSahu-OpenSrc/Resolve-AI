@@ -78,6 +78,8 @@ export default function DashboardPage() {
   const [orders, setOrders] = useState<Row[]>([])
   const [inventory, setInventory] = useState<Row[]>([])
   const [policies, setPolicies] = useState<Row[]>([])
+  const [proactiveAlerts, setProactiveAlerts] = useState<any[]>([])
+  const [pendingActions, setPendingActions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [now, setNow] = useState(0)
   const [diagramModal, setDiagramModal] = useState<DiagramType | null>(null)
@@ -98,6 +100,8 @@ export default function DashboardPage() {
       api.getOrders(),
       api.getInventory(),
       api.getPolicies(),
+      api.getProactiveAlerts(),
+      api.getPendingActions(),
     ])
 
     setNow(Date.now())
@@ -116,6 +120,9 @@ export default function DashboardPage() {
 
     if (results[4].status === 'fulfilled') setPolicies(results[4].value)
     else errMap['Policies'] = results[4].reason instanceof Error ? results[4].reason.message : 'Failed to load policies'
+
+    if (results[5].status === 'fulfilled') setProactiveAlerts((results[5].value as any)?.alerts || [])
+    if (results[6].status === 'fulfilled') setPendingActions((results[6].value as any) || [])
 
     setFailures(errMap)
     setLoading(false)
@@ -156,6 +163,24 @@ export default function DashboardPage() {
   const firstName = user?.firstName || 'there'
   const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
 
+  const handleApproveAction = async (actionId: string) => {
+    try {
+      await api.approveAction(actionId)
+      loadData()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Approval failed')
+    }
+  }
+
+  const handleRejectAction = async (actionId: string) => {
+    try {
+      await api.rejectAction(actionId)
+      loadData()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Rejection failed')
+    }
+  }
+
   const failureKeys = Object.keys(failures)
 
   return <NavShell><main className="fl-page fl-dash">
@@ -188,6 +213,60 @@ export default function DashboardPage() {
         <button className="fl-btn" onClick={() => loadData()}>
           <IconRefresh /> Retry
         </button>
+      </div>
+    )}
+
+    {/* Proactive Intelligence & Delays Center */}
+    {proactiveAlerts.length > 0 && (
+      <div style={{ background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <strong style={{ color: '#facc15', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <IconClock size={16} /> Autonomous Proactive Alerts ({proactiveAlerts.length} issues detected)
+          </strong>
+          <span style={{ fontSize: '11px', color: '#94a3b8' }}>Detected before customer complaint</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {proactiveAlerts.map((alt, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0, 0, 0, 0.2)', padding: '10px 14px', borderRadius: '8px', fontSize: '13px' }}>
+              <div>
+                <b>{alt.title}</b>: {alt.description}
+                <div style={{ fontSize: '11.5px', color: '#38bdf8', marginTop: '2px' }}>
+                  Recommendation: {alt.recommended_action}
+                </div>
+              </div>
+              <Link href={`/cases/new`} className="fl-btn sm primary" style={{ whiteSpace: 'nowrap', marginLeft: '12px' }}>
+                Open Proactive Case
+              </Link>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    {/* Pending High-Risk Approvals Queue */}
+    {pendingActions.length > 0 && (
+      <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
+        <strong style={{ color: '#f87171', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+          <IconShield size={16} /> High-Risk Action Approvals Queue ({pendingActions.length} pending)
+        </strong>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {pendingActions.map((act) => (
+            <div key={act.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0, 0, 0, 0.2)', padding: '10px 14px', borderRadius: '8px', fontSize: '13px' }}>
+              <div>
+                <b>{act.action_type.toUpperCase()}</b> for Order {act.order_id} (Customer: {act.customer_id}) · Est. Cost: Rs {act.cost_estimate.toLocaleString()}
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Idempotency: {act.idempotency_key}</div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => handleApproveAction(act.id)} className="fl-btn sm primary" style={{ background: '#22c55e', borderColor: '#22c55e' }}>
+                  Approve
+                </button>
+                <button onClick={() => handleRejectAction(act.id)} className="fl-btn sm" style={{ color: '#ef4444' }}>
+                  Reject
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )}
 
