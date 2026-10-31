@@ -396,3 +396,75 @@ def test_verified_capability_registry_endpoint():
     assert "reserve_inventory" in caps
     assert "reconcile_order_shipment_state" in caps
     assert caps["send_sms_notification"]["status"] == "Unavailable"
+
+
+def test_chutku_offline_greetings_no_inventory_dump():
+    """Verify greetings never dump raw database inventory or case counts."""
+    from app.main import resolve_offline_chutku_response
+    res = resolve_offline_chutku_response("Hi Chutku", None, "Mumbai: 1", "POL-DMG-01", [])
+    assert "Hello" in res
+    assert "Current database tracks" not in res
+    assert "cases across multi-hub" not in res
+
+
+def test_chutku_offline_arithmetic_precision():
+    """Verify math question returns direct numerical answer without inventory text."""
+    from app.main import resolve_offline_chutku_response
+    res = resolve_offline_chutku_response("What is 2 plus 2? Reply only with the number.", None, "Mumbai: 1", "POL-DMG-01", [])
+    assert "4" in res
+    assert "Current database tracks" not in res
+    assert "cases across multi-hub" not in res
+
+
+def test_chutku_offline_scenario_1_memory():
+    """Verify Scenario 1: Customer memory recall reflects verified preferences and tier."""
+    from app.main import resolve_offline_chutku_response
+    cust_snapshot = {
+        "customer": {"name": "Rahul Sharma", "tier": "premium"},
+        "facts": [{"fact": "Prefers evening delivery slots between 6:00 PM - 9:00 PM"}],
+        "orders_count": 2
+    }
+    res = resolve_offline_chutku_response("What do you remember about me?", cust_snapshot, "Mumbai: 1", "POL-DMG-01", [])
+    assert "Rahul Sharma" in res
+    assert "Premium Tier" in res
+    assert "6:00 PM - 9:00 PM" in res
+    assert "Current database tracks" not in res
+
+
+def test_chutku_offline_scenario_2_damaged_headphones():
+    """Verify Scenario 2: Damaged headphones eligibility under POL-DMG-01."""
+    from app.main import resolve_offline_chutku_response
+    res = resolve_offline_chutku_response("My headphones arrived damaged with a cracked earcup for order ORD-1042", None, "Mumbai: 1", "POL-DMG-01", [])
+    assert "ORD-1042" in res
+    assert "POL-DMG-01" in res
+    assert "7-day" in res or "7 day" in res
+    assert "Current database tracks" not in res
+
+
+def test_chutku_offline_scenario_3_inventory_conflict_explanation():
+    """Verify Scenario 3: Autonomous multi-hub replanning explanation."""
+    from app.main import resolve_offline_chutku_response
+    res = resolve_offline_chutku_response("What happens if there is an inventory conflict between Mumbai and Pune hubs?", None, "Mumbai: 1", "POL-DMG-01", [])
+    assert "Pune Hub" in res
+    assert "replanning" in res
+    assert "Current database tracks" not in res
+
+
+def test_chutku_offline_scenario_4_zero_trust_security():
+    """Verify Scenario 4: Zero Trust boundary and Supervisor approval explanation."""
+    from app.main import resolve_offline_chutku_response
+    res = resolve_offline_chutku_response("How does ResolveAI handle security and supervisor approval?", None, "Mumbai: 1", "POL-DMG-01", [])
+    assert "Zero Trust" in res
+    assert "Supervisor" in res
+    assert "POL-OVR-01" in res
+    assert "Current database tracks" not in res
+
+
+def test_chutku_offline_scenario_5_resolution_vs_chatbot():
+    """Verify Scenario 5: Differentiation between traditional chatbots and ResolveAI."""
+    from app.main import resolve_offline_chutku_response
+    res = resolve_offline_chutku_response("What makes ResolveAI different from a traditional chatbot?", None, "Mumbai: 1", "POL-DMG-01", [])
+    assert "traditional chatbots" in res.lower()
+    assert "persistent memory" in res.lower()
+    assert "agentic" in res.lower()
+    assert "Current database tracks" not in res
