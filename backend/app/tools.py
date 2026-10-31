@@ -383,51 +383,65 @@ def reserve_inventory(
     warehouse: str,
     seq: int = 0,
 ) -> dict:
-    """Reserve 1 unit of inventory at a warehouse."""
+    """Reserve 1 unit of inventory at a warehouse atomically with concurrency guard."""
+    from sqlalchemy import text
+
+    # Atomic reservation with engine-level concurrency check
+    now_str = _now().isoformat()
+    stmt = text(
+        "UPDATE inventory "
+        "SET reserved_quantity = reserved_quantity + 1, updated_at = :now "
+        "WHERE product_id = :pid AND warehouse = :wh AND (quantity - reserved_quantity) >= 1"
+    )
+    res = session.execute(stmt, {"pid": product_id, "wh": warehouse, "now": now_str})
+    session.commit()
+
+    if res.rowcount == 0:
+        inv = session.exec(
+            select(Inventory).where(
+                Inventory.product_id == product_id,
+                Inventory.warehouse == warehouse
+            )
+        ).first()
+
+        if not inv:
+            result = {"success": False, "error": f"No inventory at {warehouse}",
+                      "error_code": "INVENTORY_NOT_FOUND"}
+            _log_event(session, case_id, execution_id, "reserve_inventory",
+                       EventType.tool_result, EventStatus.FAILED,
+                       f"No inventory record for {warehouse}.",
+                       {"product_id": product_id, "warehouse": warehouse}, result, seq)
+            return result
+
+        available = inv.quantity - inv.reserved_quantity
+        result = {"success": False, "error": f"Insufficient inventory at {warehouse}",
+                  "error_code": "INVENTORY_UNAVAILABLE"}
+        _log_event(session, case_id, execution_id, "reserve_inventory",
+                       EventType.tool_result, EventStatus.BLOCKED,
+                       f"Insufficient inventory at {warehouse} (available={available}).",
+                       {"product_id": product_id, "warehouse": warehouse}, result, seq)
+        return result
+
     inv = session.exec(
         select(Inventory).where(
             Inventory.product_id == product_id,
             Inventory.warehouse == warehouse
         )
     ).first()
-
-    if not inv:
-        result = {"success": False, "error": f"No inventory at {warehouse}",
-                  "error_code": "INVENTORY_NOT_FOUND"}
-        _log_event(session, case_id, execution_id, "reserve_inventory",
-                   EventType.tool_result, EventStatus.FAILED,
-                   f"No inventory record for {warehouse}.",
-                   {"product_id": product_id, "warehouse": warehouse}, result, seq)
-        return result
-
-    available = inv.quantity - inv.reserved_quantity
-    if available < 1:
-        result = {"success": False, "error": f"Insufficient inventory at {warehouse}",
-                  "error_code": "INVENTORY_UNAVAILABLE"}
-        _log_event(session, case_id, execution_id, "reserve_inventory",
-                   EventType.tool_result, EventStatus.BLOCKED,
-                   f"Insufficient inventory at {warehouse} (available={available}).",
-                   {"product_id": product_id, "warehouse": warehouse}, result, seq)
-        return result
-
-    inv.reserved_quantity += 1
-    inv.updated_at = _now()
-    session.add(inv)
-    session.commit()
+    remaining = (inv.quantity - inv.reserved_quantity) if inv else 0
 
     result = {
         "success": True,
         "reserved": True,
         "warehouse": warehouse,
         "product_id": product_id,
-        "remaining_available": available - 1,
+        "remaining_available": remaining,
     }
     _log_event(session, case_id, execution_id, "reserve_inventory",
                EventType.tool_result, EventStatus.COMPLETED,
-               f"1 unit reserved at {warehouse}. Remaining available: {available - 1}.",
+               f"1 unit reserved at {warehouse}. Remaining available: {remaining}.",
                {"product_id": product_id, "warehouse": warehouse}, result, seq)
     return result
-
 
 def cancel_reservation(
     session: Session,

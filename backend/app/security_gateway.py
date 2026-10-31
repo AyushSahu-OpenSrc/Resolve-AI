@@ -62,8 +62,10 @@ def classify_action_risk(
         return ActionRiskLevel.medium.value
 
     if act == "replacement":
-        # Replacement within standard policy is medium; exception is high
-        return ActionRiskLevel.medium.value if policy_approved else ActionRiskLevel.high.value
+        # High-value replacement (> HIGH_RISK_REFUND_THRESHOLD) or policy exception requires supervisor approval
+        if amount > HIGH_RISK_REFUND_THRESHOLD or not policy_approved:
+            return ActionRiskLevel.high.value
+        return ActionRiskLevel.medium.value
 
     if act == "refund":
         # High value refunds or policy exceptions require supervisor approval

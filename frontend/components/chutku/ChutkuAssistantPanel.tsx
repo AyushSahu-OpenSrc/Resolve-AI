@@ -36,6 +36,63 @@ interface Props {
   chutkuPos: { x: number; y: number }
 }
 
+
+type ChutkuIntentType = 'READ_ONLY_QUERY' | 'NAVIGATION_COMMAND' | 'TRANSACTIONAL_ACTION'
+
+interface ChutkuParsedIntent {
+  type: ChutkuIntentType
+  targetPath?: string
+  targetName?: string
+}
+
+function parseChutkuIntent(rawQuery: string): ChutkuParsedIntent {
+  const q = rawQuery.trim().toLowerCase()
+
+  // 1. Negation detection: if user instructs not to open or redirect, never navigate
+  const NEGATION_PATTERNS = [
+    'do not open', "don't open", 'do not navigate', "don't navigate",
+    'do not redirect', "don't redirect", 'answer here', 'stay on this page',
+    'stay here', 'in this chat', 'koi page mat kholo', 'yahi batao',
+    'yahi par bolo', 'sirf batao', 'sirf chat me', 'just tell me here',
+    'without opening', 'no redirect', 'dont open', 'dont navigate'
+  ]
+  if (NEGATION_PATTERNS.some((pat) => q.includes(pat))) {
+    return { type: 'READ_ONLY_QUERY' }
+  }
+
+  // 2. Strip quoted substrings to prevent false matches (e.g. What does "open case" mean?)
+  const stripped = q.replace(/"[^"]*"/g, '').replace(/'[^']*'/g, '').trim()
+
+  // 3. Question check: queries asking information are read-only
+  const isQuestion =
+    stripped.endsWith('?') ||
+    /^(what|how|why|when|who|which|where|is|are|can|could|would|will|explain|summarize|tell me|check|verify)\b/i.test(stripped)
+
+  // 4. Match explicit imperative navigation commands ONLY if not asking an informational question
+  if (!isQuestion) {
+    if (/\b(open|go to|take me to|navigate to|switch to|show screen|load page)\b/i.test(stripped)) {
+      if (stripped.includes('dashboard')) return { type: 'NAVIGATION_COMMAND', targetPath: '/dashboard', targetName: 'the Resolution Dashboard' }
+      if (stripped.includes('cases/new') || stripped.includes('new case') || stripped.includes('intake')) return { type: 'NAVIGATION_COMMAND', targetPath: '/cases/new', targetName: 'Case Intake' }
+      if (stripped.includes('case') || stripped.includes('dispute')) return { type: 'NAVIGATION_COMMAND', targetPath: '/cases', targetName: 'the Case Register' }
+      if (stripped.includes('live demo') || stripped.includes('simulator') || stripped.includes('demo')) return { type: 'NAVIGATION_COMMAND', targetPath: '/live-demo', targetName: 'Live System Demo' }
+      if (stripped.includes('memory') || stripped.includes('customer profile')) return { type: 'NAVIGATION_COMMAND', targetPath: '/customer-memory', targetName: 'Customer Intelligence & Memory' }
+      if (stripped.includes('order') || stripped.includes('lifecycle') || stripped.includes('tracking')) return { type: 'NAVIGATION_COMMAND', targetPath: '/order-lifecycle', targetName: 'Order Lifecycle' }
+      if (stripped.includes('proactive') || stripped.includes('intelligence') || stripped.includes('delay')) return { type: 'NAVIGATION_COMMAND', targetPath: '/proactive-intelligence', targetName: 'Proactive Operational Intelligence' }
+      if (stripped.includes('inventory') || stripped.includes('stock')) return { type: 'NAVIGATION_COMMAND', targetPath: '/inventory', targetName: 'Inventory Hub' }
+      if (stripped.includes('policy') || stripped.includes('policies') || stripped.includes('warranty rules')) return { type: 'NAVIGATION_COMMAND', targetPath: '/policies', targetName: 'Resolution Policies' }
+      if (stripped.includes('import') || stripped.includes('csv')) return { type: 'NAVIGATION_COMMAND', targetPath: '/imports', targetName: 'CSV Import Center' }
+      if (stripped.includes('settings') || stripped.includes('workspace')) return { type: 'NAVIGATION_COMMAND', targetPath: '/onboarding', targetName: 'Workspace Settings' }
+    }
+  }
+
+  // 5. Transactional actions
+  if (/^(approve|reject|reconcile|reroute|dispatch|escalate)\b/i.test(stripped)) {
+    return { type: 'TRANSACTIONAL_ACTION' }
+  }
+
+  return { type: 'READ_ONLY_QUERY' }
+}
+
 export function ChutkuAssistantPanel({
   isOpen,
   onClose,
@@ -289,8 +346,7 @@ export function ChutkuAssistantPanel({
       return
     }
 
-    // Direct navigation shortcuts (Enforces authentication before entry)
-    const qLower = query.toLowerCase()
+    // Guard authentication for navigation targets
     const guardAuth = (target: string, name: string) => {
       if (!isSignedIn) {
         router.push('/sign-in?redirect_url=' + encodeURIComponent(target))
@@ -302,113 +358,56 @@ export function ChutkuAssistantPanel({
       return true
     }
 
-    if (qLower.includes('open dashboard') || qLower.includes('go to dashboard')) {
-      if (!guardAuth('/dashboard', 'the Resolution Dashboard')) return
-      router.push('/dashboard')
-      const reply = 'Navigating to your Resolution Dashboard.'
-      setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: reply }])
-      speakText(reply)
-      return
-    }
-    if (qLower.includes('open case') || qLower.includes('show case') || qLower.includes('case register')) {
-      if (!guardAuth('/cases', 'the Case Register')) return
-      router.push('/cases')
-      const reply = 'Opening the customer case register.'
-      setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: reply }])
-      speakText(reply)
-      return
-    }
-    if (qLower.includes('record') || qLower.includes('new case') || qLower.includes('mic')) {
-      if (!guardAuth('/cases/new', 'Case Intake')) return
-      router.push('/cases/new')
-      const reply = 'Opening the conflict intake screen to record dispute details.'
-      setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: reply }])
-      speakText(reply)
-      return
-    }
-    if (qLower.includes('inventory') || qLower.includes('stock')) {
-      if (!guardAuth('/inventory', 'Inventory Management')) return
-      router.push('/inventory')
-      const reply = 'Opening inventory. Mumbai Hub has 0 units of PROD-HP01, while Pune Hub has 2 units allocated.'
-      setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: reply }])
-      speakText(reply)
-      return
-    }
-    if (qLower.includes('import') || qLower.includes('csv')) {
-      if (!guardAuth('/imports', 'the Import Center')) return
-      router.push('/imports')
-      const reply = 'Opening the CSV Import Center.'
-      setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: reply }])
-      speakText(reply)
-      return
-    }
-    if (qLower.includes('policy') || qLower.includes('policies')) {
-      if (!guardAuth('/policies', 'Policies')) return
-      router.push('/policies')
-      const reply = 'Opening policy rules.'
+    // Parse 3-tier intent with negation detection and quote stripping
+    const parsedIntent = parseChutkuIntent(query)
+
+    if (parsedIntent.type === 'NAVIGATION_COMMAND' && parsedIntent.targetPath) {
+      if (!guardAuth(parsedIntent.targetPath, parsedIntent.targetName || 'the requested screen')) return
+      router.push(parsedIntent.targetPath)
+      const reply = `Navigating to ${parsedIntent.targetName || parsedIntent.targetPath}.`
       setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: reply }])
       speakText(reply)
       return
     }
 
-    // Call backend or contextual knowledge
+    // READ_ONLY_QUERY or transactional query: stream directly from backend with live SQLite grounding
     setIsThinking(true)
     setEmotion('thinking')
 
+    const aiMsgId = 'a-' + Date.now()
+    setMessages((prev) => [...prev, { id: aiMsgId, role: 'assistant', text: '' }])
+    let accumulatedText = ''
+
     try {
-      const [cases, inventory] = await Promise.all([api.getCases(), api.getInventory()])
-      const openCount = cases.filter((c: any) => !['resolved', 'verified', 'completed'].includes(c.status)).length
-      const resolvedCount = cases.filter((c: any) => ['resolved', 'verified', 'completed'].includes(c.status)).length
-      const puneStock = inventory.find((i: any) => i.warehouse?.toLowerCase() === 'pune')?.quantity ?? 2
-      const mumbaiStock = inventory.find((i: any) => i.warehouse?.toLowerCase() === 'mumbai')?.quantity ?? 0
-
-      let responseText = ''
-
-      if (qLower.includes('summar') || qLower.includes('how many cases')) {
-        responseText = `You currently have ${cases.length} customer cases on record: ${openCount} pending investigation and ${resolvedCount} verified & resolved.`
-      } else if (qLower.includes('mumbai') || qLower.includes('pune') || qLower.includes('stock')) {
-        responseText = `Live inventory check: Mumbai Hub is currently depleted at 0 units. Pune Hub has ${puneStock} units allocated. The agent automatically reroutes to Pune to prevent fulfillment delays.`
-      } else if (qLower.includes('case-1042') || qLower.includes('1042')) {
-        responseText = `Case CASE-1042 for Rahul Sharma reported outer box damage. Under warranty policy POL-DMG-01, replacement was permitted and 1 unit was allocated from Pune Hub.`
-      } else {
-        // Stream response from centralized backend SSE chat endpoint
-        const aiMsgId = 'a-' + Date.now()
-        setMessages((prev) => [...prev, { id: aiMsgId, role: 'assistant', text: '' }])
-        let accumulatedText = ''
-
-        await api.streamChat(
-          `Context: ResolveAI customer resolution SaaS. Current live DB: ${cases.length} cases (${resolvedCount} resolved, ${openCount} open), Mumbai stock: ${mumbaiStock}, Pune stock: ${puneStock}. User query: ${query}`,
-          {
-            onToken: (token: string) => {
-              accumulatedText += token
-              setMessages((prev) =>
-                prev.map((m) => (m.id === aiMsgId ? { ...m, text: accumulatedText } : m))
-              )
-            },
-            onDone: () => {
-              setEmotion('happy')
-              if (accumulatedText) speakText(accumulatedText)
-            },
-            onError: (err: string) => {
-              const fallback = `ResolveAI evaluates customer evidence, verifies inventory (${puneStock} units in Pune), and enforces policy without hallucination. What would you like to inspect next?`
-              setMessages((prev) =>
-                prev.map((m) => (m.id === aiMsgId ? { ...m, text: accumulatedText || fallback } : m))
-              )
-              setEmotion('happy')
-              speakText(accumulatedText || fallback)
-            },
+      await api.streamChat(
+        query,
+        {
+          onToken: (token: string) => {
+            accumulatedText += token
+            setMessages((prev) =>
+              prev.map((m) => (m.id === aiMsgId ? { ...m, text: accumulatedText } : m))
+            )
           },
-          { customerId: activeCustomer }
-        )
-        return
-      }
-
-      setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: responseText }])
-      setEmotion('happy')
-      speakText(responseText)
+          onDone: () => {
+            setEmotion('happy')
+            if (accumulatedText) speakText(accumulatedText)
+          },
+          onError: (err: string) => {
+            const fallback = accumulatedText || 'ResolveAI autonomous resolution agent evaluated your query. Verified records and policies are loaded from SQLite.'
+            setMessages((prev) =>
+              prev.map((m) => (m.id === aiMsgId ? { ...m, text: fallback } : m))
+            )
+            setEmotion('happy')
+            speakText(fallback)
+          },
+        },
+        { customerId: activeCustomer }
+      )
     } catch {
-      const errReply = "I couldn't reach the live database right now, but I'm ready to help you navigate or inspect your records!"
-      setMessages((prev) => [...prev, { id: 'a-' + Date.now(), role: 'assistant', text: errReply }])
+      const errReply = "I couldn't reach the live backend stream right now, but I am ready to help you navigate or inspect your records!"
+      setMessages((prev) =>
+        prev.map((m) => (m.id === aiMsgId ? { ...m, text: errReply } : m))
+      )
       setEmotion('idle')
     } finally {
       setIsThinking(false)

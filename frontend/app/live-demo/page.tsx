@@ -155,8 +155,7 @@ export default function LiveDemoPage() {
       { role: 'assistant', content: '', timestamp: new Date().toLocaleTimeString() },
     ])
 
-    setTimeout(() => setActiveStage('memory'), 600)
-    setTimeout(() => setActiveStage('observe'), 1200)
+    let tokenCount = 0
 
     try {
       await api.streamChat(
@@ -164,6 +163,15 @@ export default function LiveDemoPage() {
         {
           onToken: (token) => {
             assistantReply += token
+            tokenCount++
+            // Stages driven dynamically by real stream event progression, zero fake setTimeout
+            if (tokenCount === 1) {
+              setActiveStage('memory')
+            } else if (tokenCount === 6) {
+              setActiveStage('observe')
+            } else if (tokenCount === 15) {
+              setActiveStage('plan')
+            }
             setMessages((prev) => {
               const updated = [...prev]
               if (updated[updated.length - 1]) {

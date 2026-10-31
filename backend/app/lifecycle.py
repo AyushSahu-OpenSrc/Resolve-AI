@@ -31,14 +31,15 @@ LIFECYCLE_ORDER = [
 # State graph map of allowed transitions
 VALID_TRANSITIONS: Dict[str, set[str]] = {
     # Initial states
-    "pending": {"order_placed", "confirmed", "processing", "cancelled"},
-    "order_placed": {"confirmed", "processing", "cancelled"},
-    "confirmed": {"processing", "cancelled"},
-    "processing": {"shipped", "cancelled", "delayed"},
+    "pending": {"order_placed", "confirmed", "processing", "shipped", "in_transit", "delivered", "cancelled"},
+    "order_placed": {"confirmed", "processing", "shipped", "in_transit", "cancelled"},
+    "confirmed": {"processing", "shipped", "in_transit", "cancelled"},
+    "processing": {"shipped", "in_transit", "out_for_delivery", "delivered", "cancelled", "delayed"},
     
     # Transit states
-    "shipped": {"out_for_delivery", "delayed", "delivery_failed", "delivered"},
-    "delayed": {"in_transit", "out_for_delivery", "delivery_failed", "delivered", "cancelled"},
+    "shipped": {"in_transit", "out_for_delivery", "delayed", "delivery_failed", "delivered"},
+    "in_transit": {"shipped", "out_for_delivery", "delayed", "delivery_failed", "delivered"},
+    "delayed": {"in_transit", "shipped", "out_for_delivery", "delivery_failed", "delivered", "cancelled"},
     "out_for_delivery": {"delivered", "delivery_failed", "delayed"},
     "delivery_failed": {"out_for_delivery", "returned_to_hub", "cancelled"},
     
@@ -318,3 +319,71 @@ def scan_proactive_issues(session: Session) -> List[Dict[str, Any]]:
 
     return detected_issues
 
+
+
+def reconcile_order_shipment_state(session: Session, order_id: str) -> Tuple[bool, str, Optional[Order]]:
+    """
+    Reconciles discrepancy between physical shipment checkpoints and order status.
+    Uses physical carrier checkpoint (Shipment) as physical ground truth.
+    Idempotent: does not write redundant events if states already match.
+    """
+    order = session.get(Order, order_id)
+    if not order:
+        return False, f"Order {order_id} not found", None
+
+    shipment = session.exec(select(Shipment).where(Shipment.order_id == order_id)).first()
+    if not shipment:
+        return True, f"No shipment tracking record for Order {order_id}; order state stands.", order
+
+    shipment_status = (shipment.status or "").lower()
+    order_status = (order.status or "").lower()
+
+    # Map physical shipment status to target order lifecycle state
+    shipment_to_order_map = {
+        "shipped": "shipped",
+        "in_transit": "shipped",
+        "out_for_delivery": "out_for_delivery",
+        "delivered": "delivered",
+        "delayed": "delayed",
+    }
+
+    target_order_state = shipment_to_order_map.get(shipment_status)
+    if not target_order_state:
+        return True, f"Shipment status '{shipment_status}' does not require order state override.", order
+
+    # If already aligned, return idempotently
+    if order_status == target_order_state or (order_status == "delivered" and target_order_state in ("shipped", "out_for_delivery")):
+        return True, f"Order {order_id} state '{order_status}' is already consistent with shipment '{shipment_status}'.", order
+
+    # Physical reality takes precedence: advance order state
+    old_state = order.status
+    order.status = target_order_state
+    order.lifecycle_state = target_order_state
+    now_dt = _now()
+    if target_order_state == "delivered" and not order.delivery_date:
+        order.delivery_date = shipment.actual_delivery or now_dt
+
+    session.add(order)
+
+    # Log verified reconciliation event
+    cid = f"reconcile-{uuid.uuid4().hex[:8]}"
+    summary = f"Logistics reconciliation: Order {order_id} advanced from '{old_state}' to '{target_order_state}' based on physical courier checkpoint ({shipment.carrier} {shipment.tracking_number}: {shipment.status})."
+
+    event = AgentEvent(
+        id=f"EVT-REC-{uuid.uuid4().hex[:8]}",
+        order_id=order_id,
+        customer_id=order.customer_id,
+        correlation_id=cid,
+        actor="logistics_reconciliation_engine",
+        risk_level="low",
+        event_type=EventType.lifecycle_transition.value,
+        status=EventStatus.COMPLETED.value,
+        reasoning_summary=summary,
+        input_data=str({"old_order_state": old_state, "shipment_state": shipment_status, "carrier": shipment.carrier}),
+        output_data=str({"new_order_state": target_order_state, "reconciled_at": now_dt.isoformat()}),
+    )
+    session.add(event)
+    session.commit()
+    session.refresh(order)
+
+    return True, summary, order

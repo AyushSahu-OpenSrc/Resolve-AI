@@ -10,8 +10,10 @@ from datetime import datetime, timedelta, timezone
 from sqlmodel import Session, select
 from app.database import engine, create_db_and_tables
 from app.models import (
-    Customer, Product, Order, Inventory, Policy,
-    SupportCase, Replacement, AgentExecution, AgentEvent
+    Customer, Product, Order, Shipment, Inventory, Policy,
+    SupportCase, Replacement, AgentExecution, AgentEvent,
+    CustomerPreference, CustomerConversation, ConversationMessage,
+    ResolutionAction, FollowUpTask, Feedback
 )
 
 
@@ -22,7 +24,9 @@ def seed():
 
     with Session(engine) as session:
         # ── Clear existing data (idempotent seed) ──────────────────────────
-        for model in [AgentEvent, AgentExecution, Replacement, SupportCase,
+        for model in [ConversationMessage, CustomerConversation, CustomerPreference,
+                      FollowUpTask, Feedback, ResolutionAction, Shipment,
+                      AgentEvent, AgentExecution, Replacement, SupportCase,
                       Inventory, Order, Policy, Product, Customer]:
             rows = session.exec(select(model)).all()
             for row in rows:
@@ -283,6 +287,175 @@ def seed():
         ]
         for c in cases:
             session.add(c)
+        session.commit()
+
+        # ── Shipments ──────────────────────────────────────────────────────
+        shipments = [
+            Shipment(
+                id="SHIP-1042",
+                order_id="ORD-1042",
+                carrier="BlueDart",
+                tracking_number="BD-1042-MUM",
+                status="delivered",
+                current_location="Mumbai Central Delivery Hub",
+                origin_hub="Pune Hub",
+                destination_city="Mumbai",
+                is_delayed=False,
+                actual_delivery=now - timedelta(days=4),
+                estimated_delivery=now - timedelta(days=4),
+            ),
+            Shipment(
+                id="SHIP-1046",
+                order_id="ORD-1046",
+                carrier="Delhivery",
+                tracking_number="DEL-1046-BLR",
+                status="delivered",
+                current_location="Bengaluru South Hub",
+                origin_hub="Mumbai Hub",
+                destination_city="Bengaluru",
+                is_delayed=False,
+                actual_delivery=now - timedelta(days=2),
+                estimated_delivery=now - timedelta(days=2),
+            ),
+            Shipment(
+                id="SHIP-1050",
+                order_id="ORD-1050",
+                carrier="BlueDart",
+                tracking_number="BD-1050-DEL",
+                status="delivered",
+                current_location="Delhi Hub",
+                origin_hub="Pune Hub",
+                destination_city="Delhi",
+                is_delayed=False,
+                actual_delivery=now - timedelta(days=10),
+                estimated_delivery=now - timedelta(days=10),
+            ),
+            Shipment(
+                id="SHIP-1051",
+                order_id="ORD-1051",
+                carrier="Shadowfax",
+                tracking_number="SF-1051-HYD",
+                status="in_transit",
+                current_location="Nagpur Transit Hub",
+                origin_hub="Mumbai Hub",
+                destination_city="Hyderabad",
+                is_delayed=True,
+                delay_reason="Logistics hub congestion at Nagpur transit hub",
+                estimated_delivery=now + timedelta(days=2),
+            ),
+            Shipment(
+                id="SHIP-1052",
+                order_id="ORD-1052",
+                carrier="Delhivery",
+                tracking_number="DEL-1052-PUN",
+                status="delivered",
+                current_location="Pune East Hub",
+                origin_hub="Mumbai Hub",
+                destination_city="Pune",
+                is_delayed=False,
+                actual_delivery=now - timedelta(days=14),
+                estimated_delivery=now - timedelta(days=14),
+            ),
+            Shipment(
+                id="SHIP-2026-LPT",
+                order_id="ORD-2026-LPT",
+                carrier="BlueDart Express",
+                tracking_number="BD-2026-9941",
+                status="shipped",
+                current_location="Pune Highway Logistics Checkpoint",
+                origin_hub="Pune Hub",
+                destination_city="Mumbai",
+                is_delayed=False,
+                estimated_delivery=now + timedelta(hours=24),
+            ),
+        ]
+        for s in shipments:
+            session.add(s)
+        session.commit()
+
+        # ── Customer Preferences & Long-term Memory Facts ─────────────────
+        preferences = [
+            CustomerPreference(
+                id="PREF-CUST-001",
+                customer_id="CUST-001",
+                preferred_contact_channel="chat",
+                preferred_language="en-IN",
+                notes="Prefers evening delivery slots between 6:00 PM - 9:00 PM; Verified Enterprise VIP; Never spam with repeated feedback surveys",
+                deferred_feedback=True,
+                updated_at=now,
+            ),
+            CustomerPreference(
+                id="PREF-CUST-004",
+                customer_id="CUST-004",
+                preferred_contact_channel="whatsapp",
+                preferred_language="en-IN",
+                notes="Tech team lead at TechHub; Requires GST invoices for all hardware replacements",
+                deferred_feedback=False,
+                updated_at=now,
+            ),
+            CustomerPreference(
+                id="PREF-CUST-002",
+                customer_id="CUST-002",
+                preferred_contact_channel="email",
+                preferred_language="en-IN",
+                notes="Prefers weekend deliveries; Home address has security gate code 4091",
+                deferred_feedback=False,
+                updated_at=now,
+            ),
+        ]
+        for pref in preferences:
+            session.add(pref)
+        session.commit()
+
+        # ── Customer Conversations & Multi-turn History ───────────────────
+        conv = CustomerConversation(
+            id="CONV-CUST-001-01",
+            customer_id="CUST-001",
+            channel="chat",
+            status="active",
+            summary="Defective headphones inquiry & replacement check",
+            created_at=now - timedelta(days=3),
+            last_active_at=now - timedelta(hours=2),
+        )
+        session.add(conv)
+        session.commit()
+
+        messages = [
+            ConversationMessage(
+                id="MSG-001",
+                conversation_id="CONV-CUST-001-01",
+                sender="customer",
+                message_text="Hi, I received my headphones yesterday but the right earcup frame is cracked.",
+                intent="report_damaged_item",
+                created_at=now - timedelta(days=3, hours=4),
+            ),
+            ConversationMessage(
+                id="MSG-002",
+                conversation_id="CONV-CUST-001-01",
+                sender="agent",
+                message_text="I am sorry to hear that, Rahul. As an Enterprise Premium member, under policy POL-DMG-01, you are fully eligible for a priority replacement. I will verify our warehouse stock.",
+                intent="reassure_and_verify",
+                created_at=now - timedelta(days=3, hours=3, minutes=58),
+            ),
+            ConversationMessage(
+                id="MSG-003",
+                conversation_id="CONV-CUST-001-01",
+                sender="customer",
+                message_text="Can you ensure delivery after 6 PM? I am at work before that.",
+                intent="set_delivery_preference",
+                created_at=now - timedelta(days=3, hours=3, minutes=50),
+            ),
+            ConversationMessage(
+                id="MSG-004",
+                conversation_id="CONV-CUST-001-01",
+                sender="agent",
+                message_text="Understood. I have logged your evening delivery preference (6:00 PM - 9:00 PM) into your verified customer profile.",
+                intent="confirm_preference",
+                created_at=now - timedelta(days=3, hours=3, minutes=45),
+            ),
+        ]
+        for m in messages:
+            session.add(m)
         session.commit()
 
         print("[OK] Database seeded successfully.")

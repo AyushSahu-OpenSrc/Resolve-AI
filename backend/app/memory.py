@@ -226,6 +226,30 @@ def retrieve_customer_memory_snapshot(
         "due_date": t.due_date.strftime("%Y-%m-%d"),
     } for t in pending_tasks]
 
+    # Extract structured facts from notes & preferences
+    facts_list = []
+    if pref.notes:
+        for note in pref.notes.split(";"):
+            note_s = note.strip()
+            if note_s:
+                facts_list.append({
+                    "id": f"FACT-{len(facts_list) + 1}",
+                    "fact": note_s,
+                    "category": "preference",
+                    "source": "Verified Customer Profile",
+                    "confidence": 0.98,
+                    "created_at": pref.updated_at.isoformat() if pref.updated_at else _now().isoformat(),
+                })
+    if pref.preferred_contact_channel:
+        facts_list.append({
+            "id": f"FACT-{len(facts_list) + 1}",
+            "fact": f"Preferred contact channel: {pref.preferred_contact_channel.upper()}",
+            "category": "channel",
+            "source": "Account Settings",
+            "confidence": 1.0,
+            "created_at": pref.updated_at.isoformat() if pref.updated_at else _now().isoformat(),
+        })
+
     return {
         "customer": {
             "id": customer.id,
@@ -238,12 +262,16 @@ def retrieve_customer_memory_snapshot(
             "deferred_feedback": pref.deferred_feedback,
             "preferred_contact_channel": pref.preferred_contact_channel,
             "preferred_language": pref.preferred_language,
+            "notes": pref.notes,
         },
+        "facts": facts_list,
+        "orders": orders_memory,
         "orders_count": len(orders),
         "recent_orders": orders_memory[:5],
         "open_cases": [c for c in cases_memory if c["status"] in ("open", "running")],
         "past_resolutions": [c for c in cases_memory if c["status"] == "resolved"],
         "follow_up_tasks": tasks_memory,
+        "conversations": conversation_history,
         "recent_conversation": conversation_history,
         "verified_facts_summary": (
             f"Customer {customer.name} ({customer.tier} tier) has {len(orders)} orders on record. "

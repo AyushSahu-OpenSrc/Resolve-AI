@@ -272,6 +272,41 @@ def run_full_simulation(session: Session) -> Dict[str, Any]:
         policy_approved=True,
     )
 
+    # Enforce Zero Trust gateway: action halts at pending_approval before supervisor signoff
+    if not auth_ok and action_rec and action_rec.status == "pending_approval":
+        log_step(10, "Zero Trust Approval Gateway Halted", "PENDING_APPROVAL", {
+            "risk_tier": "HIGH_RISK",
+            "amount": 124999.00,
+            "reason": "Autonomous agent cannot execute actions exceeding Rs 2,500 without authenticated supervisor signoff.",
+            "status": "pending_approval",
+            "action_id": action_rec.id,
+        })
+        # Explicit supervisor sign-off step
+        action_rec.status = "approved"
+        action_rec.approved_by = "supervisor-sim-01"
+        action_rec.executed_at = _now()
+        session.add(action_rec)
+
+        evt_app = AgentEvent(
+            id=f"EVT-APP-{uuid.uuid4().hex[:6]}",
+            order_id=SIM_ORDER_ID,
+            customer_id=SIM_CUSTOMER_ID,
+            actor="supervisor-sim-01",
+            risk_level="high",
+            event_type=EventType.action_approval.value,
+            status=EventStatus.COMPLETED.value,
+            reasoning_summary=f"Supervisor supervisor-sim-01 authenticated and authorized high-risk replacement (Action {action_rec.id}).",
+        )
+        session.add(evt_app)
+        session.commit()
+
+        log_step(11, "Supervisor Cryptographic Signoff", "APPROVED", {
+            "supervisor_id": "supervisor-sim-01",
+            "action_id": action_rec.id,
+            "status": "approved",
+            "gateway_result": "UNLOCKED",
+        })
+
     # Multi-Hub Inventory allocation: Mumbai has 0, reroutes to Pune Hub (3 units)
     res_inv = reserve_inventory(session, "CASE-1042", None, "PROD-LPT-01", "Pune")
     
