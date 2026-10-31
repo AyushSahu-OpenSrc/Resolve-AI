@@ -751,9 +751,7 @@ def start_resolution(
     if not case:
         raise HTTPException(404, f"Case {case_id} not found in database")
 
-    if case.status in ("resolved", "escalated"):
-        raise HTTPException(400, f"Case already in terminal state: {case.status}")
-
+    # If case is actively processing, prevent race conditions
     if case.status in ("processing", "running"):
         raise HTTPException(409, f"Case is already being processed: {case.status}")
 
@@ -761,6 +759,14 @@ def start_resolution(
         if case_id in _running_agents:
             raise HTTPException(409, "Agent already running for this case")
         _running_agents.add(case_id)
+
+    # If previously terminal or failed, reset to open to allow operator re-evaluation
+    if case.status in ("resolved", "escalated", "failed"):
+        case.status = "open"
+        case.resolution_summary = None
+        case.updated_at = _now()
+        session.add(case)
+        session.commit()
 
     def run_and_cleanup():
         try:
@@ -773,7 +779,24 @@ def start_resolution(
                 _running_agents.discard(case_id)
 
     background_tasks.add_task(run_and_cleanup)
-    return {"status": "started", "case_id": case_id}
+    return {"status": "started", "case_id": case_id, "message": "Resolution agent loop initiated"}
+
+
+@app.get("/api/cases/{case_id}/resolve")
+def get_resolution_status(
+    case_id: str,
+    session: Session = Depends(get_session),
+):
+    """Return resolution state for case, preventing 405 Method Not Allowed if accessed via GET."""
+    case = session.get(SupportCase, case_id)
+    if not case:
+        raise HTTPException(404, f"Case {case_id} not found in database")
+    return {
+        "case_id": case.id,
+        "status": case.status,
+        "resolution_summary": case.resolution_summary,
+        "message": "To trigger agent resolution, submit a POST request to this endpoint."
+    }
 
 
 # ─── Chat SSE Streaming Endpoint ──────────────────────────────────────────────
