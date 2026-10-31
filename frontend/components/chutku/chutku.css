@@ -160,14 +160,14 @@
   bottom: 96px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(15, 23, 42, 0.94);
+  background: #ffffff;
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(56, 189, 248, 0.35);
+  border: 1px solid #e2e8f0;
   border-radius: 14px;
   padding: 8px 14px;
   font-size: 12px;
   font-weight: 500;
-  color: #fff;
+  color: #0f172a;
   white-space: nowrap;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   pointer-events: none;
@@ -183,7 +183,7 @@
   transform: translateX(-50%);
   border-width: 6px;
   border-style: solid;
-  border-color: rgba(15, 23, 42, 0.94) transparent transparent transparent;
+  border-color: #ffffff transparent transparent transparent;
 }
 
 /* Assistant Conversation Panel (Right-side Collapsible Drawer) */
@@ -216,15 +216,15 @@
   height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: rgba(10, 20, 42, 0.94);
+  background: #ffffff;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border-left: 1px solid rgba(56, 189, 248, 0.25);
+  border-left: 1px solid #e2e8f0;
   border-top: none;
   border-bottom: none;
   border-right: none;
   border-radius: 0;
-  box-shadow: -12px 0 50px rgba(0, 0, 0, 0.7), 0 0 35px -5px rgba(56, 189, 248, 0.15);
+  box-shadow: -10px 0 30px rgba(15, 23, 42, 0.08);
   overflow: hidden;
   animation: slideDrawerIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -250,8 +250,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.08) 0%, transparent 100%);
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
 }
 
 .chutku-panel-title {
@@ -262,13 +262,13 @@
 
 .chutku-panel-title strong {
   font-size: 15px;
-  color: #fff;
+  color: #0f172a;
   letter-spacing: -0.01em;
 }
 
 .chutku-panel-title small {
   font-size: 11px;
-  color: #38bdf8;
+  color: #2563eb;
   display: block;
 }
 
@@ -292,16 +292,16 @@
 
 .chutku-msg.assistant {
   align-self: flex-start;
-  background: rgba(30, 41, 59, 0.75);
-  color: #f1f5f9;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #f1f5f9;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
   border-bottom-left-radius: 4px;
 }
 
 .chutku-msg.user {
   align-self: flex-end;
   background: linear-gradient(135deg, #2563eb, #38bdf8);
-  color: #fff;
+  color: #0f172a;
   border-bottom-right-radius: 4px;
 }
 
@@ -314,9 +314,9 @@
 }
 
 .chutku-chip {
-  background: rgba(56, 189, 248, 0.1);
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  color: #7dd3fc;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
   padding: 5px 10px;
   border-radius: 12px;
   font-size: 11.5px;
@@ -329,8 +329,8 @@
 
 .chutku-chip:hover {
   background: rgba(56, 189, 248, 0.2);
-  border-color: #38bdf8;
-  color: #fff;
+  border-color: #2563eb;
+  color: #0f172a;
   transform: translateY(-1px);
 }
 
@@ -338,7 +338,7 @@
 .chutku-input-bar {
   padding: 12px 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(15, 23, 42, 0.6);
+  background: #ffffff;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -346,18 +346,18 @@
 
 .chutku-input {
   flex: 1;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
   border-radius: 18px;
   padding: 8px 14px;
-  color: #fff;
+  color: #0f172a;
   font-size: 13px;
   outline: none;
   transition: border-color 0.15s;
 }
 
 .chutku-input:focus {
-  border-color: #38bdf8;
+  border-color: #2563eb;
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -369,22 +369,22 @@
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #fff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .chutku-btn-icon:hover {
   background: rgba(56, 189, 248, 0.2);
-  border-color: #38bdf8;
-  color: #38bdf8;
+  border-color: #2563eb;
+  color: #2563eb;
 }
 
 .chutku-btn-icon.active {
   background: #ef4444;
   border-color: #f87171;
-  color: #fff;
+  color: #0f172a;
   animation: pulse 1.2s infinite;
 }
 
@@ -395,13 +395,13 @@
   right: 20px;
   z-index: 99990;
   background: rgba(15, 23, 42, 0.88);
-  border: 1px solid rgba(56, 189, 248, 0.35);
+  border: 1px solid #e2e8f0;
   border-radius: 20px;
   padding: 6px 14px;
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #38bdf8;
+  color: #2563eb;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;

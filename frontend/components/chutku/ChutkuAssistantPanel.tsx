@@ -583,7 +583,7 @@ export function ChutkuAssistantPanel({
             <select
               value={activeCustomer}
               onChange={(e) => setActiveCustomer(e.target.value as any)}
-              style={{ background: 'rgba(15, 23, 42, 0.8)', color: 'var(--fg, #f8fafc)', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', outline: 'none' }}
+              style={{ background: '#f8fafc', color: '#0f172a', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', outline: 'none' }}
             >
               <option value="CUST-001">Rahul Sharma (ORD-1042 / LPT)</option>
               <option value="CUST-004">Sneha Reddy (ORD-1046)</option>
@@ -597,8 +597,8 @@ export function ChutkuAssistantPanel({
         <div
           style={{
             padding: '14px 18px',
-            background: 'rgba(15, 23, 42, 0.95)',
-            borderBottom: '1px solid rgba(56, 189, 248, 0.25)',
+            background: '#f8fafc',
+            borderBottom: '1px solid #e2e8f0',
             display: 'flex',
             flexDirection: 'column',
             gap: '10px',

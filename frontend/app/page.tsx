@@ -42,8 +42,8 @@ import { DiagramModal, type DiagramType } from '@/components/DiagramModal'
    ROUTES & NAVIGATION
    ───────────────────────────────────────────────────────────────────────────── */
 const ROUTES = {
-  howItWorks: '/how-it-works',
-  simulator: '/simulator',
+  liveDemo: '/live-demo',
+  
   customerMemory: '/customer-memory',
   orderLifecycle: '/order-lifecycle',
   proactive: '/proactive-intelligence',
@@ -59,13 +59,13 @@ const ROUTES = {
 } as const
 
 const NAV_LINKS = [
-  { label: 'How It Works', href: ROUTES.howItWorks },
-  { label: 'Simulator', href: ROUTES.simulator },
+  { label: 'Live Demo', href: '/live-demo' },
   { label: 'Cases', href: ROUTES.cases },
   { label: 'Memory', href: ROUTES.customerMemory },
   { label: 'Lifecycle', href: ROUTES.orderLifecycle },
   { label: 'Proactive', href: ROUTES.proactive },
   { label: 'Inventory', href: ROUTES.inventory },
+  { label: 'Policies', href: ROUTES.policies },
 ] as const
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -730,7 +730,7 @@ function CapabilitiesSection() {
       tag: 'AGENTIC WORKFLOW',
       title: 'Unified Autonomous AI Agent',
       desc: 'Bounded 10-step loop: Understand → Context → Observe → Plan → Authorize → Execute → Evaluate → Adapt → Verify → Persist.',
-      link: ROUTES.howItWorks,
+      link: '/live-demo',
       linkText: 'Explore agentic loop ↗',
       color: '#38bdf8',
     },
@@ -770,7 +770,7 @@ function CapabilitiesSection() {
       tag: 'ZERO TRUST SECURITY',
       title: 'Zero Trust Gateway & RBAC',
       desc: 'Customer data boundary checks, prompt injection sanitization, idempotency protection, and supervisor approval gateway.',
-      link: ROUTES.howItWorks,
+      link: '/live-demo',
       linkText: 'Inspect security guards ↗',
       color: '#f87171',
     },
@@ -778,7 +778,7 @@ function CapabilitiesSection() {
       tag: 'HACKATHON DEMO',
       title: '14-Stage Lifecycle Simulator',
       desc: 'Step-by-step playback of complete laptop lifecycle with neural voice narration and real-time database state inspection.',
-      link: ROUTES.simulator,
+      link: '/live-demo',
       linkText: 'Launch 14-stage simulator ↗',
       color: '#f97316',
     },
@@ -918,20 +918,20 @@ function SeeInActionSection() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
                 <div style={{ fontSize: '12px', color: '#16a34a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <strong>✓ Speech Recognition Voice Ingestion:</strong> Real-time microphone audio transcription
+                  <strong> Speech Recognition Voice Ingestion:</strong> Real-time microphone audio transcription
                 </div>
                 <div style={{ fontSize: '12px', color: '#16a34a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <strong>✓ Deterministic Policy Enforcement:</strong> Zero hallucinations or fake promises
+                  <strong> Deterministic Policy Enforcement:</strong> Zero hallucinations or fake promises
                 </div>
                 <div style={{ fontSize: '12px', color: '#16a34a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <strong>✓ Multi-Hub Stock Routing:</strong> Automatic failover to secondary Pune warehouse
+                  <strong> Multi-Hub Stock Routing:</strong> Automatic failover to secondary Pune warehouse
                 </div>
               </div>
             </div>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
               <Link
-                href="/how-it-works"
+                href="/live-demo"
                 style={{
                   background: '#2563eb',
                   color: '#fff',
@@ -1004,20 +1004,20 @@ function SeeInActionSection() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
                 <div style={{ fontSize: '12px', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <strong>✓ Proactive Disruption Detection:</strong> Alerts customer before they file ticket
+                  <strong> Proactive Disruption Detection:</strong> Alerts customer before they file ticket
                 </div>
                 <div style={{ fontSize: '12px', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <strong>✓ Persistent Memory Engine:</strong> Preserves customer delivery preferences & facts
+                  <strong> Persistent Memory Engine:</strong> Preserves customer delivery preferences & facts
                 </div>
                 <div style={{ fontSize: '12px', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <strong>✓ Polite Feedback Protection:</strong> Defers reviews while issue is active
+                  <strong> Polite Feedback Protection:</strong> Defers reviews while issue is active
                 </div>
               </div>
             </div>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
               <Link
-                href="/how-it-works"
+                href="/live-demo"
                 style={{
                   background: '#38bdf8',
                   color: '#0f172a',

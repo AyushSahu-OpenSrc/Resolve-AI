@@ -18,11 +18,10 @@ type NavItem = { href: string; label: string; icon: ComponentType<SVGProps<SVGSV
 
 const workspaceNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: IconDashboard },
-  { href: '/how-it-works', label: 'How It Works', icon: IconSpark },
+  { href: '/live-demo', label: 'Live System Demo', icon: IconSpark },
   { href: '/customer-memory', label: 'Customer Memory', icon: IconUsers },
   { href: '/order-lifecycle', label: 'Order Lifecycle', icon: IconBox },
   { href: '/proactive-intelligence', label: 'Proactive Intel', icon: IconBell },
-  { href: '/simulator', label: 'Demo Simulator', icon: IconFlame },
   { href: '/cases', label: 'Cases', icon: IconCases, badge: 'open' },
   { href: '/agent-runs', label: 'Agent Runs', icon: IconSpark, badge: 'running' },
   { href: '/explorer?tab=customers', label: 'Customers', icon: IconUsers, tab: 'customers', badge: 'customers' },
@@ -39,12 +38,11 @@ const operationsNav: NavItem[] = [
 ]
 const titles: [string, string][] = [
   ['/dashboard', 'Dashboard'],
-  ['/how-it-works', 'Interactive Agentic Demo Center'],
+  ['/live-demo', 'Live System Demo'],
   ['/customer-memory', 'Customer Intelligence & Persistent Memory'],
   ['/order-lifecycle', 'End-to-End Order Lifecycle Journey'],
   ['/proactive-intelligence', 'Proactive Operational Intelligence'],
-  ['/simulator', 'Hackathon Demo Simulator'],
-  ['/cases/new', 'New Case'],
+    ['/cases/new', 'New Case'],
   ['/cases/', 'Case detail'],
   ['/cases', 'Cases'],
   ['/agent-runs', 'Agent Runs'],
@@ -72,25 +70,6 @@ let sidebarCache: { at: number; cases: CaseLite[]; customers: number } | null = 
 export function NavShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-    const [theme, setTheme] = useState<'dark' | 'light'>('dark')
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('resolveai_theme') as 'dark' | 'light' | null
-      const initial = saved || 'dark'
-      setTheme(initial)
-      document.documentElement.setAttribute('data-theme', initial)
-    } catch {}
-  }, [])
-
-  function toggleTheme() {
-    const next = theme === 'dark' ? 'light' : 'dark'
-    setTheme(next)
-    try {
-      localStorage.setItem('resolveai_theme', next)
-      document.documentElement.setAttribute('data-theme', next)
-    } catch {}
-  }
 
   const [activeTab, setActiveTab] = useState('customers')
   const { isLoaded, isSignedIn, user } = useUser()
@@ -227,27 +206,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
         >
           <IconSpark/>Ask Chutku AI
         </button>
-                <button
-          className="fl-icon-btn ghost"
-          onClick={toggleTheme}
-          title={theme === 'dark' ? 'Switch to Light theme' : 'Switch to Dark theme'}
-          aria-label="Toggle theme"
-          style={{ width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          {theme === 'dark' ? (
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="5"/>
-              <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-              <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-            </svg>
-          ) : (
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-            </svg>
-          )}
-        </button>
+                
         <Link href="/cases" className="fl-icon-btn fl-bell" aria-label={alertCount ? alertCount + ' cases need attention' : 'No cases need attention'}>
           <IconBell/>{alertCount > 0 && <i/>}
         </Link>
