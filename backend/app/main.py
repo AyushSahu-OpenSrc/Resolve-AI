@@ -29,7 +29,7 @@ from app.models import (
     Customer, Order, Product, Inventory, Policy,
     SupportCase, Replacement, AgentEvent, AgentExecution,
     Shipment, CustomerConversation, ConversationMessage, CustomerPreference,
-    ResolutionAction, FollowUpTask, Feedback
+    ResolutionAction, FollowUpTask, Feedback, EventType, EventStatus
 )
 from app.lifecycle import transition_order_state, update_shipment_checkpoint, scan_proactive_issues
 from app.memory import (
@@ -38,6 +38,8 @@ from app.memory import (
 )
 from app.security_gateway import authorize_action, sanitize_input, classify_action_risk
 from app.simulator import run_full_simulation, reset_simulation, SIM_ORDER_ID, SIM_CUSTOMER_ID
+from app.demo_steps import DEMO_MODE_1_STEPS, DEMO_MODE_2_STEPS, FAILURE_SCENARIOS
+from app.auth import get_current_user, require_role, verify_customer_access, AuthUser, ROLE_SUPERVISOR, ROLE_ADMIN
 from app.tools import _now
 import app.seed as seed_module
 
@@ -178,6 +180,12 @@ class ShipmentCheckpointRequest(BaseModel):
 class DeferFeedbackRequest(BaseModel):
     order_id: str
     days_deferral: int = 3
+
+
+class AddFactRequest(BaseModel):
+    fact: str
+    category: str = "preference"
+    confidence: float = 0.95
 
 
 class ActionDecisionRequest(BaseModel):
@@ -1227,12 +1235,35 @@ def get_chutku_voices():
 # ─── ResolveAI 2.0 Customer Lifecycle & Memory Endpoints ────────────────────
 
 @app.get("/api/customers/{customer_id}/memory", tags=["memory"])
-def get_customer_memory(customer_id: str, session: Session = Depends(get_session)):
-    """Retrieve persistent long-term memory snapshot for a customer."""
+def get_customer_memory(customer_id: str, user: AuthUser = Depends(get_current_user), session: Session = Depends(get_session)):
+    """Retrieve persistent long-term memory snapshot for an authorized customer."""
+    verify_customer_access(user, customer_id)
     mem = retrieve_customer_memory_snapshot(session, customer_id)
     if "error" in mem:
         raise HTTPException(404, mem["error"])
     return mem
+
+
+@app.post("/api/customers/{customer_id}/facts", tags=["memory"])
+def add_customer_fact_endpoint(customer_id: str, req: AddFactRequest, session: Session = Depends(get_session)):
+    pref = session.exec(select(CustomerPreference).where(CustomerPreference.customer_id == customer_id)).first()
+    if not pref:
+        pref = CustomerPreference(
+            id=f"PREF-{customer_id}",
+            customer_id=customer_id,
+            preferred_contact_channel="chat",
+            preferred_language="en-IN",
+            notes=req.fact,
+            updated_at=_now(),
+        )
+        session.add(pref)
+    else:
+        existing = pref.notes or ""
+        pref.notes = f"{existing}; {req.fact}" if existing else req.fact
+        pref.updated_at = _now()
+        session.add(pref)
+    session.commit()
+    return {"status": "success", "customer_id": customer_id, "fact": req.fact, "category": req.category}
 
 
 @app.post("/api/customers/{customer_id}/feedback/defer", tags=["memory"])
@@ -1323,21 +1354,44 @@ def get_pending_actions(session: Session = Depends(get_session)):
 
 
 @app.post("/api/actions/{action_id}/approve", tags=["security"])
-def approve_action(action_id: str, req: ActionDecisionRequest, session: Session = Depends(get_session)):
+def approve_action(
+    action_id: str,
+    req: ActionDecisionRequest,
+    user: AuthUser = Depends(require_role([ROLE_SUPERVISOR, ROLE_ADMIN])),
+    session: Session = Depends(get_session)
+):
     """Supervisor approves high-risk action."""
     action = session.get(ResolutionAction, action_id)
     if not action:
         raise HTTPException(404, f"Action {action_id} not found")
     action.status = "approved"
-    action.approved_by = req.approved_by
+    action.approved_by = req.approved_by or user.user_id
     action.executed_at = _now()
     session.add(action)
+
+    # Log immutable approval event in ledger
+    evt = AgentEvent(
+        id=f"EVT-APP-{uuid.uuid4().hex[:6]}",
+        order_id=action.order_id,
+        customer_id=action.customer_id,
+        actor=user.user_id,
+        risk_level=action.risk_level,
+        event_type=EventType.action_approval.value,
+        status=EventStatus.COMPLETED.value,
+        reasoning_summary=f"Supervisor {user.user_id} approved high-risk {action.action_type} for Order {action.order_id}.",
+    )
+    session.add(evt)
     session.commit()
-    return {"status": "approved", "action_id": action_id}
+    return {"status": "approved", "action_id": action_id, "approved_by": action.approved_by}
 
 
 @app.post("/api/actions/{action_id}/reject", tags=["security"])
-def reject_action(action_id: str, req: ActionDecisionRequest, session: Session = Depends(get_session)):
+def reject_action(
+    action_id: str,
+    req: ActionDecisionRequest,
+    user: AuthUser = Depends(require_role([ROLE_SUPERVISOR, ROLE_ADMIN])),
+    session: Session = Depends(get_session)
+):
     """Supervisor rejects high-risk action."""
     action = session.get(ResolutionAction, action_id)
     if not action:
@@ -1376,6 +1430,60 @@ def get_simulator_status(session: Session = Depends(get_session)):
         "shipment": shipment,
         "events_count": len(events),
         "events": events[-10:],
+    }
+
+
+# ─── Interactive Workflow Demonstration Center Endpoints ────────────────────
+
+@app.get("/api/demo/mode1/steps", tags=["simulator"])
+def get_mode1_steps():
+    """Return verified step trace for Demo Mode 1 (Autonomous Replacement & Replanning)."""
+    return DEMO_MODE_1_STEPS
+
+
+@app.get("/api/demo/mode2/steps", tags=["simulator"])
+def get_mode2_steps():
+    """Return verified step trace for Demo Mode 2 (Complete Customer Lifecycle)."""
+    return DEMO_MODE_2_STEPS
+
+
+@app.get("/api/demo/scenarios", tags=["simulator"])
+def get_scenarios():
+    """Return 7 selectable failure and edge-case simulation scenarios."""
+    return FAILURE_SCENARIOS
+
+
+@app.post("/api/demo/scenario/{scenario_id}/run", tags=["simulator"])
+def run_scenario(scenario_id: str, session: Session = Depends(get_session)):
+    """Run an isolated edge-case failure scenario and return recovery outcome."""
+    scenarios = {s["id"]: s for s in FAILURE_SCENARIOS}
+    if scenario_id not in scenarios:
+        raise HTTPException(404, f"Scenario {scenario_id} not found")
+    sc = scenarios[scenario_id]
+
+    now_dt = _now()
+    evt = AgentEvent(
+        id=f"EVT-SIM-{uuid.uuid4().hex[:6]}",
+        order_id="ORD-1042",
+        customer_id="CUST-001",
+        actor="simulation_runner",
+        risk_level="medium",
+        event_type=EventType.error.value if "outage" in scenario_id or "conflict" in scenario_id else EventType.observation.value,
+        status=EventStatus.BLOCKED.value if "conflict" in scenario_id or "duplicate" in scenario_id else EventStatus.COMPLETED.value,
+        reasoning_summary=f"Simulated Scenario [{sc['name']}]: {sc['simulated_failure']}. Autonomous Recovery: {sc['agent_recovery']}",
+        input_data=json.dumps({"scenario_id": scenario_id, "name": sc["name"]}),
+        output_data=json.dumps({"recovery": sc["agent_recovery"], "recovered": True}),
+        timestamp=now_dt,
+    )
+    session.add(evt)
+    session.commit()
+
+    return {
+        "scenario": sc,
+        "execution_status": "success",
+        "recovered": True,
+        "event_id": evt.id,
+        "timestamp": now_dt.isoformat(),
     }
 
 

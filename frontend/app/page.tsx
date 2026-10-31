@@ -27,6 +27,12 @@ import {
   IconShield as Shield,
   IconTruck as Truck,
   IconFileText as FileText,
+  IconFlame as Flame,
+  IconSpark as Spark,
+  IconUsers as Users,
+  IconBox as BoxIcon,
+  IconAlert as AlertIcon,
+  IconClock as Clock,
 } from '@/components/icons'
 import { useUser } from '@clerk/nextjs'
 import './qfit-home.css'
@@ -36,6 +42,11 @@ import { DiagramModal, type DiagramType } from '@/components/DiagramModal'
    ROUTES & NAVIGATION
    ───────────────────────────────────────────────────────────────────────────── */
 const ROUTES = {
+  howItWorks: '/how-it-works',
+  simulator: '/simulator',
+  customerMemory: '/customer-memory',
+  orderLifecycle: '/order-lifecycle',
+  proactive: '/proactive-intelligence',
   cases: '/cases',
   newCase: '/cases/new',
   policies: '/policies',
@@ -48,12 +59,13 @@ const ROUTES = {
 } as const
 
 const NAV_LINKS = [
+  { label: 'How It Works', href: ROUTES.howItWorks },
+  { label: 'Simulator', href: ROUTES.simulator },
   { label: 'Cases', href: ROUTES.cases },
-  { label: 'New Case', href: ROUTES.newCase },
-  { label: 'Policies', href: ROUTES.policies },
+  { label: 'Memory', href: ROUTES.customerMemory },
+  { label: 'Lifecycle', href: ROUTES.orderLifecycle },
+  { label: 'Proactive', href: ROUTES.proactive },
   { label: 'Inventory', href: ROUTES.inventory },
-  { label: 'Agent Runs', href: ROUTES.runs },
-  { label: 'Import CSV', href: ROUTES.imports },
 ] as const
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -708,6 +720,339 @@ function PipelineSection() {
 /* ─────────────────────────────────────────────────────────────────────────────
    3-CARD FEATURE GALLERY (Using the 3 generated banners)
    ───────────────────────────────────────────────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   EXPLORE RESOLVEAI 2.0 CAPABILITIES (7 Pillar Cards)
+   ───────────────────────────────────────────────────────────────────────────── */
+function CapabilitiesSection() {
+  const capabilities = [
+    {
+      tag: 'AGENTIC WORKFLOW',
+      title: 'Unified Autonomous AI Agent',
+      desc: 'Bounded 10-step loop: Understand → Context → Observe → Plan → Authorize → Execute → Evaluate → Adapt → Verify → Persist.',
+      link: ROUTES.howItWorks,
+      linkText: 'Explore agentic loop ↗',
+      color: '#38bdf8',
+    },
+    {
+      tag: 'LONGITUDINAL MEMORY',
+      title: 'Persistent Customer Memory',
+      desc: 'Remembers cross-session customer facts, delivery preferences, and defers feedback politely when deliveries are disrupted.',
+      link: ROUTES.customerMemory,
+      linkText: 'Inspect customer memory ↗',
+      color: '#c084fc',
+    },
+    {
+      tag: 'DETERMINISTIC MACHINE',
+      title: 'End-to-End Order Lifecycle',
+      desc: 'Deterministic state transitions from order placement through fulfillment, exception handling, and post-delivery resolution.',
+      link: ROUTES.orderLifecycle,
+      linkText: 'Track lifecycle journeys ↗',
+      color: '#34d399',
+    },
+    {
+      tag: 'FLEET MONITORING',
+      title: 'Proactive Operational Intelligence',
+      desc: 'Detects courier weather bottlenecks, stalled transit checkpoints, and pre-empts complaints before customers call in.',
+      link: ROUTES.proactive,
+      linkText: 'View proactive alerts ↗',
+      color: '#fbbf24',
+    },
+    {
+      tag: 'MULTI-HUB LOGISTICS',
+      title: 'Autonomous Stock Replanning',
+      desc: 'Dynamically discovers regional hub inventory (Mumbai stockout → Pune Hub allocation) with atomic SQLite reservation.',
+      link: ROUTES.inventory,
+      linkText: 'Inspect live inventory ↗',
+      color: '#60a5fa',
+    },
+    {
+      tag: 'ZERO TRUST SECURITY',
+      title: 'Zero Trust Gateway & RBAC',
+      desc: 'Customer data boundary checks, prompt injection sanitization, idempotency protection, and supervisor approval gateway.',
+      link: ROUTES.howItWorks,
+      linkText: 'Inspect security guards ↗',
+      color: '#f87171',
+    },
+    {
+      tag: 'HACKATHON DEMO',
+      title: '14-Stage Lifecycle Simulator',
+      desc: 'Step-by-step playback of complete laptop lifecycle with neural voice narration and real-time database state inspection.',
+      link: ROUTES.simulator,
+      linkText: 'Launch 14-stage simulator ↗',
+      color: '#f97316',
+    },
+  ]
+
+  return (
+    <section className="qf-block qf-block--night" id="capabilities">
+      <div className="qf-wrap">
+        <div className="qf-head">
+          <p style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#38bdf8', margin: '0 0 10px' }}>
+            System Capabilities
+          </p>
+          <h2 className="qf-h2">Explore ResolveAI 2.0 Capabilities</h2>
+          <p className="qf-lede">
+            Seven unified pillars of autonomous customer lifecycle intelligence, persistent memory, and verified resolutions.
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+          {capabilities.map((cap, i) => (
+            <div
+              key={i}
+              style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '20px',
+                padding: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <div>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    color: cap.color,
+                    background: `${cap.color}15`,
+                    border: `1px solid ${cap.color}35`,
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    display: 'inline-block',
+                    marginBottom: '12px',
+                  }}
+                >
+                  {cap.tag}
+                </span>
+                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#fff', margin: '0 0 8px' }}>
+                  {cap.title}
+                </h3>
+                <p style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.7)', lineHeight: 1.6, margin: 0 }}>
+                  {cap.desc}
+                </p>
+              </div>
+
+              <Link
+                href={cap.link}
+                style={{
+                  marginTop: '16px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: cap.color,
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                }}
+              >
+                {cap.linkText}
+              </Link>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SEE RESOLVEAI IN ACTION (Demo Mode A & Demo Mode B Previews)
+   ───────────────────────────────────────────────────────────────────────────── */
+function SeeInActionSection() {
+  return (
+    <section className="qf-block qf-block--white" id="see-in-action">
+      <div className="qf-wrap">
+        <div className="qf-head">
+          <p style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#2563eb', margin: '0 0 10px' }}>
+            Live Demonstrations
+          </p>
+          <h2 className="qf-h2">See ResolveAI in Action</h2>
+          <p className="qf-lede">
+            Two comprehensive live demonstration environments engineered for Tech Zephyr 4.0 evaluation.
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '24px' }}>
+          {/* Demo A: Inventory Conflict */}
+          <div
+            style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '24px',
+              padding: '32px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    color: '#2563eb',
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                  }}
+                >
+                  DEMO MODE A: CONFLICT & REPLAN
+                </span>
+                <span style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 700, color: '#64748b' }}>
+                  ORDER: ORD-1042
+                </span>
+              </div>
+
+              <h3 style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', margin: '0 0 12px' }}>
+                Autonomous Replacement & Multi-Hub Replanning
+              </h3>
+              <p style={{ fontSize: '14px', color: '#475569', lineHeight: 1.6, margin: '0 0 20px' }}>
+                Customer reports damaged wireless headphones. Mumbai Regional Hub is depleted (0 units). ResolveAI evaluates damage evidence, executes Policy POL-01, dynamically discovers 2 available units at Pune Hub, and creates an atomic replacement order.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+                <div style={{ fontSize: '12px', color: '#16a34a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <strong>✓ Speech Recognition Voice Ingestion:</strong> Real-time microphone audio transcription
+                </div>
+                <div style={{ fontSize: '12px', color: '#16a34a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <strong>✓ Deterministic Policy Enforcement:</strong> Zero hallucinations or fake promises
+                </div>
+                <div style={{ fontSize: '12px', color: '#16a34a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <strong>✓ Multi-Hub Stock Routing:</strong> Automatic failover to secondary Pune warehouse
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+              <Link
+                href="/how-it-works"
+                style={{
+                  background: '#2563eb',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  padding: '10px 18px',
+                  borderRadius: '12px',
+                  textDecoration: 'none',
+                }}
+              >
+                Explore Agentic Workflow ↗
+              </Link>
+              <Link
+                href="/cases"
+                style={{
+                  background: '#fff',
+                  color: '#0f172a',
+                  border: '1px solid #cbd5e1',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  padding: '10px 18px',
+                  borderRadius: '12px',
+                  textDecoration: 'none',
+                }}
+              >
+                Inspect Case 1042
+              </Link>
+            </div>
+          </div>
+
+          {/* Demo B: Complete Lifecycle */}
+          <div
+            style={{
+              background: '#0f172a',
+              border: '1px solid #1e293b',
+              borderRadius: '24px',
+              padding: '32px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              color: '#fff',
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    color: '#38bdf8',
+                    background: 'rgba(56, 189, 248, 0.1)',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                  }}
+                >
+                  DEMO MODE B: COMPLETE LIFECYCLE
+                </span>
+                <span style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 700, color: '#94a3b8' }}>
+                  ORDER: ORD-2026-LPT
+                </span>
+              </div>
+
+              <h3 style={{ fontSize: '22px', fontWeight: 800, color: '#fff', margin: '0 0 12px' }}>
+                End-to-End Laptop Customer Lifecycle
+              </h3>
+              <p style={{ fontSize: '14px', color: '#94a3b8', lineHeight: 1.6, margin: '0 0 20px' }}>
+                Follow customer Rahul Sharma from order placement through logistics transit, proactive courier weather delay detection, broken laptop screen intake, Chutku contextual memory chat, replacement dispatch, and polite CSAT deferral.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+                <div style={{ fontSize: '12px', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <strong>✓ Proactive Disruption Detection:</strong> Alerts customer before they file ticket
+                </div>
+                <div style={{ fontSize: '12px', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <strong>✓ Persistent Memory Engine:</strong> Preserves customer delivery preferences & facts
+                </div>
+                <div style={{ fontSize: '12px', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <strong>✓ Polite Feedback Protection:</strong> Defers reviews while issue is active
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+              <Link
+                href="/how-it-works"
+                style={{
+                  background: '#38bdf8',
+                  color: '#0f172a',
+                  fontWeight: 800,
+                  fontSize: '13px',
+                  padding: '10px 18px',
+                  borderRadius: '12px',
+                  textDecoration: 'none',
+                }}
+              >
+                Try Live Demo ↗
+              </Link>
+              <Link
+                href="/order-lifecycle"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  color: '#fff',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  padding: '10px 18px',
+                  borderRadius: '12px',
+                  textDecoration: 'none',
+                }}
+              >
+                View Customer Lifecycle
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function FeatureGallery({ onOpenDiagram }: { onOpenDiagram: (type: DiagramType) => void }) {
   return (
     <section className="qf-block qf-block--night" id="features">
@@ -919,6 +1264,12 @@ export default function LandingPage() {
           </div>
         </div>
       </div>
+
+            {/* Explore ResolveAI 2.0 Capabilities */}
+      <CapabilitiesSection />
+
+      {/* See ResolveAI in Action */}
+      <SeeInActionSection />
 
       {/* 3-Card Feature Gallery using the 3 generated banners */}
       <FeatureGallery onOpenDiagram={setDiagramType} />

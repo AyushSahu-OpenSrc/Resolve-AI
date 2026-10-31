@@ -2,10 +2,11 @@
 Tests for ResolveAI 2.0 Risk-Adaptive Security Gateway and Zero Trust Enforcement.
 """
 import pytest
+import uuid
 from datetime import datetime, timezone
-from sqlmodel import Session
+from sqlmodel import Session, select
 from app.database import engine, create_db_and_tables
-from app.models import Customer, Order, Product
+from app.models import Customer, Order, Product, ResolutionAction
 from app.security_gateway import (
     authorize_action, classify_action_risk, sanitize_input, HIGH_RISK_REFUND_THRESHOLD
 )
@@ -15,6 +16,11 @@ from app.security_gateway import (
 def setup_security_fixtures():
     create_db_and_tables()
     with Session(engine) as s:
+        # Clean existing actions for test order
+        actions = s.exec(select(ResolutionAction).where(ResolutionAction.order_id == "ORD-SEC-01")).all()
+        for a in actions:
+            s.delete(a)
+        
         if not s.get(Customer, "CUST-SEC-01"):
             s.add(Customer(id="CUST-SEC-01", name="Owner A", email="owner.a@test.com"))
         if not s.get(Customer, "CUST-SEC-02"):

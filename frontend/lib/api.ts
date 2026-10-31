@@ -245,8 +245,18 @@ export const api = {
 
   // ─── ResolveAI 2.0: Customer Lifecycle & Memory ────────────────────────
   getCustomerMemory: (customerId: string) => apiFetch(`/api/customers/${customerId}/memory`),
+  addCustomerFact: (customerId: string, fact: string, category = 'preference', confidence = 0.95) =>
+    apiFetch(`/api/customers/${customerId}/facts`, {
+      method: 'POST',
+      body: JSON.stringify({ fact, category, confidence }),
+    }),
   deferCustomerFeedback: (customerId: string, orderId: string, days = 3) =>
     apiFetch(`/api/customers/${customerId}/feedback/defer`, {
+      method: 'POST',
+      body: JSON.stringify({ order_id: orderId, days_deferral: days }),
+    }),
+  deferFeedback: (orderId: string, days = 3) =>
+    apiFetch(`/api/customers/CUST-001/feedback/defer`, {
       method: 'POST',
       body: JSON.stringify({ order_id: orderId, days_deferral: days }),
     }),
@@ -277,10 +287,15 @@ export const api = {
       body: JSON.stringify({ reason }),
     }),
 
-  // ─── Hackathon Demo Simulator ──────────────────────────────────────────
+  // ─── Hackathon Demo Simulator & Interactive Center ──────────────────
   runSimulator: () => apiFetch('/api/simulator/run', { method: 'POST' }),
   resetSimulator: () => apiFetch('/api/simulator/reset', { method: 'POST' }),
   getSimulatorStatus: () => apiFetch('/api/simulator/status'),
+  getMode1Steps: () => apiFetch('/api/demo/mode1/steps'),
+  getMode2Steps: () => apiFetch('/api/demo/mode2/steps'),
+  getDemoScenarios: () => apiFetch('/api/demo/scenarios'),
+  runDemoScenario: (scenarioId: string) =>
+    apiFetch(`/api/demo/scenario/${scenarioId}/run`, { method: 'POST' }),
 
   // Voice Neural TTS
   getVoices: () => apiFetch('/api/chutku/voices'),

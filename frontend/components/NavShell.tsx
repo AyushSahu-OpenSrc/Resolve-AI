@@ -18,7 +18,11 @@ type NavItem = { href: string; label: string; icon: ComponentType<SVGProps<SVGSV
 
 const workspaceNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: IconDashboard },
-  { href: '/simulator', label: 'Demo Simulator', icon: IconSpark },
+  { href: '/how-it-works', label: 'How It Works', icon: IconSpark },
+  { href: '/customer-memory', label: 'Customer Memory', icon: IconUsers },
+  { href: '/order-lifecycle', label: 'Order Lifecycle', icon: IconBox },
+  { href: '/proactive-intelligence', label: 'Proactive Intel', icon: IconBell },
+  { href: '/simulator', label: 'Demo Simulator', icon: IconFlame },
   { href: '/cases', label: 'Cases', icon: IconCases, badge: 'open' },
   { href: '/agent-runs', label: 'Agent Runs', icon: IconSpark, badge: 'running' },
   { href: '/explorer?tab=customers', label: 'Customers', icon: IconUsers, tab: 'customers', badge: 'customers' },
@@ -34,9 +38,23 @@ const operationsNav: NavItem[] = [
   { href: '/onboarding', label: 'Workspace settings', icon: IconSettings },
 ]
 const titles: [string, string][] = [
-  ['/dashboard', 'Dashboard'], ['/simulator', 'Hackathon Demo Simulator'], ['/cases/new', 'New Case'], ['/cases/', 'Case detail'], ['/cases', 'Cases'],
-  ['/agent-runs', 'Agent Runs'], ['/explorer', 'Data explorer'], ['/fulfillment', 'Fulfillment'], ['/analytics', 'Analytics'],
-  ['/policies', 'Policies'], ['/communications', 'Communications'], ['/imports', 'Import center'], ['/onboarding', 'Workspace settings'],
+  ['/dashboard', 'Dashboard'],
+  ['/how-it-works', 'Interactive Agentic Demo Center'],
+  ['/customer-memory', 'Customer Intelligence & Persistent Memory'],
+  ['/order-lifecycle', 'End-to-End Order Lifecycle Journey'],
+  ['/proactive-intelligence', 'Proactive Operational Intelligence'],
+  ['/simulator', 'Hackathon Demo Simulator'],
+  ['/cases/new', 'New Case'],
+  ['/cases/', 'Case detail'],
+  ['/cases', 'Cases'],
+  ['/agent-runs', 'Agent Runs'],
+  ['/explorer', 'Data explorer'],
+  ['/fulfillment', 'Fulfillment'],
+  ['/analytics', 'Analytics'],
+  ['/policies', 'Policies'],
+  ['/communications', 'Communications'],
+  ['/imports', 'Import center'],
+  ['/onboarding', 'Workspace settings'],
 ]
 
 const DONE = ['resolved', 'verified', 'completed']
