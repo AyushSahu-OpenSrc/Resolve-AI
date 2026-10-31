@@ -3,6 +3,8 @@ ResolveAI FastAPI application.
 """
 from __future__ import annotations
 
+from app.capabilities import CAPABILITY_REGISTRY, get_capabilities_summary
+
 import asyncio
 import csv
 import io
@@ -280,10 +282,11 @@ def list_orders(session: Session = Depends(get_session)):
 
 
 @app.get("/api/orders/{order_id}")
-def get_order_api(order_id: str, session: Session = Depends(get_session)):
+def get_order_api(order_id: str, user: AuthUser = Depends(get_current_user), session: Session = Depends(get_session)):
     o = session.get(Order, order_id)
     if not o:
         raise HTTPException(404, "Order not found")
+    verify_customer_access(user, o.customer_id)
     return {
         "id": o.id, "customer_id": o.customer_id, "product_id": o.product_id,
         "status": o.status,
@@ -626,10 +629,11 @@ def list_cases(session: Session = Depends(get_session)):
 
 
 @app.get("/api/cases/{case_id}")
-def get_case(case_id: str, session: Session = Depends(get_session)):
+def get_case(case_id: str, user: AuthUser = Depends(get_current_user), session: Session = Depends(get_session)):
     case = session.get(SupportCase, case_id)
     if not case:
         raise HTTPException(404, "Case not found")
+    verify_customer_access(user, case.customer_id)
 
     customer = session.get(Customer, case.customer_id)
     order = session.get(Order, case.order_id)
@@ -1302,13 +1306,15 @@ def defer_feedback_endpoint(customer_id: str, req: DeferFeedbackRequest, session
 
 
 @app.get("/api/orders/{order_id}/timeline", tags=["lifecycle"])
-def get_order_timeline(order_id: str, session: Session = Depends(get_session)):
+def get_order_timeline(order_id: str, user: AuthUser = Depends(get_current_user), session: Session = Depends(get_session)):
     """Return full event history and lifecycle transitions for an order."""
+    order = session.get(Order, order_id)
+    if order:
+        verify_customer_access(user, order.customer_id)
     events = session.exec(
         select(AgentEvent).where(AgentEvent.order_id == order_id).order_by(AgentEvent.timestamp)
     ).all()
     shipment = session.exec(select(Shipment).where(Shipment.order_id == order_id)).first()
-    order = session.get(Order, order_id)
     return {
         "order_id": order_id,
         "current_status": order.status if order else "unknown",
@@ -1335,8 +1341,11 @@ def transition_order_lifecycle(order_id: str, req: OrderTransitionRequest, sessi
 
 
 @app.get("/api/shipments/{order_id}", tags=["lifecycle"])
-def get_shipment(order_id: str, session: Session = Depends(get_session)):
+def get_shipment(order_id: str, user: AuthUser = Depends(get_current_user), session: Session = Depends(get_session)):
     """Get shipment and tracking checkpoints for an order."""
+    order = session.get(Order, order_id)
+    if order:
+        verify_customer_access(user, order.customer_id)
     shipment = session.exec(select(Shipment).where(Shipment.order_id == order_id)).first()
     if not shipment:
         raise HTTPException(404, f"No shipment record for order {order_id}")
@@ -1529,3 +1538,8 @@ def reconcile_order_endpoint(order_id: str, session: Session = Depends(get_sessi
     if not ok:
         raise HTTPException(400, msg)
     return {"status": "reconciled", "message": msg, "order": order}
+
+@app.get("/api/capabilities", tags=["agent"])
+def get_verified_capabilities():
+    """Return the ground truth capability registry to eliminate tool hallucinations."""
+    return {"status": "verified", "capabilities": CAPABILITY_REGISTRY}

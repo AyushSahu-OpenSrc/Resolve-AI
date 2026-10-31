@@ -119,10 +119,13 @@ def get_current_user(
     if creds and creds.credentials:
         token = creds.credentials
 
-        # Test token bypass only for testing suite
-        if token.startswith("test_") or token == "mock-token":
+        # In production environments, strictly disallow test tokens
+        is_production = os.getenv("ENV", "").lower() == "production" or os.getenv("NODE_ENV", "").lower() == "production"
+        if (token.startswith("test_") or token == "mock-token"):
+            if is_production:
+                raise HTTPException(status_code=401, detail="Test tokens are strictly prohibited in production mode.")
             assigned_role = role_header if (role_header in ALL_ROLES and is_trusted_internal) else (
-                ROLE_SUPERVISOR if "supervisor" in token else ROLE_AGENT
+                ROLE_SUPERVISOR if "supervisor" in token else (role_header if role_header in ALL_ROLES else ROLE_AGENT)
             )
             return AuthUser(
                 user_id=user_id_header or "test-user-01",

@@ -324,3 +324,75 @@ def test_database_has_seeded_shipments_and_preferences():
         assert shipment is not None
         assert pref is not None
         assert pref.notes is not None
+
+
+# ─── 7. Concurrency Stress Test & Object-Level Access Control ─────────────────
+
+def test_concurrent_inventory_competition_for_last_unit():
+    """
+    Concurrency Proof: 5 concurrent threads compete for 1 unit of available stock.
+    Engine-level atomic update guarantees:
+      - Exactly 1 thread succeeds (res['success'] == True)
+      - Exactly 4 threads are blocked (res['success'] == False, INVENTORY_UNAVAILABLE)
+      - Remaining stock is 0, NEVER negative.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    test_wh = f"Hub-{uuid.uuid4().hex[:4]}"
+    test_pid = f"PROD-CONC-{uuid.uuid4().hex[:4]}"
+
+    # Seed 1 unit of stock
+    with Session(engine) as s:
+        inv = Inventory(id=f"INV-{uuid.uuid4().hex[:6]}", product_id=test_pid, warehouse=test_wh, quantity=1, reserved_quantity=0)
+        s.add(inv)
+        s.commit()
+
+    def worker(worker_id):
+        with Session(engine) as s:
+            return reserve_inventory(s, f"CASE-CONC-{worker_id}", None, test_pid, test_wh)
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        results = list(executor.map(worker, range(5)))
+
+    successes = [r for r in results if r["success"] is True]
+    failures = [r for r in results if r["success"] is False]
+
+    assert len(successes) == 1, f"Expected exactly 1 success, got {len(successes)}"
+    assert len(failures) == 4, f"Expected 4 blocked threads, got {len(failures)}"
+    assert all(f["error_code"] == "INVENTORY_UNAVAILABLE" for f in failures)
+
+    # Verify final stock in DB
+    with Session(engine) as s:
+        final_inv = s.exec(select(Inventory).where(Inventory.product_id == test_pid, Inventory.warehouse == test_wh)).first()
+        assert final_inv.reserved_quantity == 1
+        assert final_inv.quantity - final_inv.reserved_quantity == 0
+
+
+def test_object_level_order_authorization():
+    """Verify customer CUST-002 cannot retrieve order ORD-1042 (owned by CUST-001)."""
+    client = TestClient(app)
+    # Caller asserts role customer for CUST-002
+    headers = {"X-User-Role": "customer", "X-Customer-Id": "CUST-002", "X-User-Id": "user-cust-02"}
+    res = client.get("/api/orders/ORD-1042", headers=headers)
+    assert res.status_code == 403
+    assert "privacy violation" in res.json()["detail"].lower()
+
+
+def test_object_level_case_authorization():
+    """Verify customer CUST-002 cannot retrieve case CASE-1042 (owned by CUST-001)."""
+    client = TestClient(app)
+    headers = {"X-User-Role": "customer", "X-Customer-Id": "CUST-002", "X-User-Id": "user-cust-02"}
+    res = client.get("/api/cases/CASE-1042", headers=headers)
+    assert res.status_code == 403
+    assert "privacy violation" in res.json()["detail"].lower()
+
+
+def test_verified_capability_registry_endpoint():
+    """Verify capability registry endpoint returns authentic registered capabilities."""
+    client = TestClient(app)
+    res = client.get("/api/capabilities")
+    assert res.status_code == 200
+    caps = res.json()["capabilities"]
+    assert "reserve_inventory" in caps
+    assert "reconcile_order_shipment_state" in caps
+    assert caps["send_sms_notification"]["status"] == "Unavailable"
